@@ -42,8 +42,8 @@ deploy:
 	ZONE_RESOURCE_ID=$(shell az network dns zone show -n ${ZONE_NAME} -g ${REGIONAL_RESOURCEGROUP} --query id -o tsv) && \
 	CX_SECRETS_KV_URL="https://${CX_SECRETS_KV_NAME}.vault.azure.net/" && \
 	CX_MI_KV_URL="https://${CX_MI_KV_NAME}.vault.azure.net/" && \
-	./hack/helm.sh cluster-service deploy ${NAMESPACE} \
-	  -f deploy/$${OVERRIDES} \
+	./hack/helm.sh cluster-service helmcharts/cluster-service ${NAMESPACE} \
+	  -f helm-charts/cluster-service/$${OVERRIDES} \
 	  --set serviceAccountName=${SERVICE_ACCOUNT_NAME} \
 	  --set environment=${ENVIRONMENT} \
 	  --set azureCsMiClientId=$${AZURE_CS_MI_CLIENT_ID} \
@@ -95,7 +95,11 @@ deploy:
 	  --set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT} \
-	  --set deployDebugJob=${DEPLOY_DEBUG_JOB}
+
+deploy-cs-debug-jobs:
+	./hack/helm.sh cs-debug-jobs helm-charts/cs-debug-jobs ${NAMESPACE} \
+	  --set imageDigest=${IMAGE_DIGEST} \
+	  --set deployDebugJobs=${DEPLOY_DEBUG_JOBS}
 
 deploy-pr-env-deps:
 	AZURE_CS_MI_CLIENT_ID=$(shell az identity show -g ${RESOURCEGROUP} -n clusters-service --query clientId -o tsv) && \
@@ -152,7 +156,7 @@ personal-runtime-config:
 .PHONY: personal-runtime-config
 
 local-azure-operators-managed-identities-config:
-	helm template deploy -s templates/azure-operators-managed-identities-config.configmap.yaml \
+	helm template deploy -s helm-charts/cluster-service/templates/azure-operators-managed-identities-config.configmap.yaml \
 	  --set azureOperatorsMI.roleSetName=${OPERATOR_ROLE_SET_NAME} \
 	  | yq '.data["azure-operators-managed-identities-config.yaml"]' > ./azure-operators-managed-identities-config.yaml
 .PHONY: local-azure-operators-managed-identities-config
@@ -162,7 +166,7 @@ local-aro-hcp-ocp-versions-config:
 	--set ocpVersions.defaultVersion.version=${OCP_VERSIONS_DEFAULT_VERSION_VERSION} \
 	--set ocpVersions.channelGroups.stable.minVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MIN_VERSION} \
 	--set ocpVersions.channelGroups.stable.maxVersion=${OCP_VERSIONS_CHANNEL_GROUPS_STABLE_MAX_VERSION} \
-	-s templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
+	-s helm-charts/cluster-service/templates/aro-hcp-ocp-versions-config.configmap.yaml | yq '.data["aro-hcp-ocp-versions-config.yaml"]' > ./aro-hcp-ocp-versions-config.yaml
 .PHONY: local-aro-hcp-ocp-versions-config
 
 #
