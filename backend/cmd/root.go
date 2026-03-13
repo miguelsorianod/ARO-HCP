@@ -374,6 +374,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create clusters service client: %w", err))
 	}
 
+	operatorsManagedIdentitiesConfig, err := app.NewOperatorsManagedIdentitiesConfig(ctx, f.AzureClusterScopedIdentitiesRoleSetName)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create operators managed identities config: %w", err))
+	}
+
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
@@ -391,6 +396,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
 		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
+		OperatorsManagedIdentitiesConfig:   operatorsManagedIdentitiesConfig,
 	}
 
 	return backendOptions, nil
