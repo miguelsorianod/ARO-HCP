@@ -22,8 +22,6 @@ import (
 	"os"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -87,37 +85,33 @@ type NetworkConfig struct {
 
 func DefaultOpenshiftControlPlaneVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
-	if version == "" {
+	if len(version) == 0 {
 		version = DefaultOCPVersionId
 	}
-	GinkgoLogr.Info("Using OpenShift control plane version", "version", version)
 	return version
 }
 
 func DefaultOpenshiftChannelGroup() string {
 	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_CHANNEL_GROUP")
-	if channelGroup == "" {
+	if len(channelGroup) == 0 {
 		channelGroup = DefaultOCPChannelGroup
 	}
-	GinkgoLogr.Info("Using OpenShift channel group", "channelGroup", channelGroup)
 	return channelGroup
 }
 
 func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
-	if version == "" {
+	if len(version) == 0 {
 		version = DefaultOCPNodePoolVersionId
 	}
-	GinkgoLogr.Info("Using OpenShift node pool version", "version", version)
 	return version
 }
 
 func DefaultOpenshiftNodePoolChannelGroup() string {
 	channelGroup := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_CHANNEL_GROUP")
-	if channelGroup == "" {
+	if len(channelGroup) == 0 {
 		channelGroup = DefaultOCPNodePoolChannelGroup
 	}
-	GinkgoLogr.Info("Using OpenShift node pool channel group", "channelGroup", channelGroup)
 	return channelGroup
 }
 
