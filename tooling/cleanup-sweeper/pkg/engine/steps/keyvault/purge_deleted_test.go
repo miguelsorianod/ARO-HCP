@@ -19,29 +19,46 @@ import "testing"
 func TestPurgeDeletedStepConfig_StepOptions(t *testing.T) {
 	t.Parallel()
 
-	cfg := PurgeDeletedStepConfig{
-		Name:            "custom-name",
-		Retries:         4,
-		ContinueOnError: true,
+	testCases := []struct {
+		name         string
+		cfg          PurgeDeletedStepConfig
+		wantStepName string
+	}{
+		{
+			name: "step options projection",
+			cfg: PurgeDeletedStepConfig{
+				Name:            "custom-name",
+				Retries:         4,
+				ContinueOnError: true,
+			},
+			wantStepName: "custom-name",
+		},
+		{
+			name:         "default step name",
+			cfg:          PurgeDeletedStepConfig{},
+			wantStepName: "Purge soft-deleted Key Vaults",
+		},
 	}
 
-	opts := cfg.StepOptions()
-	if opts.Name != cfg.Name {
-		t.Fatalf("expected name %q, got %q", cfg.Name, opts.Name)
-	}
-	if opts.Retries != cfg.Retries {
-		t.Fatalf("expected retries %d, got %d", cfg.Retries, opts.Retries)
-	}
-	if opts.ContinueOnError != cfg.ContinueOnError {
-		t.Fatalf("expected continueOnError %t, got %t", cfg.ContinueOnError, opts.ContinueOnError)
-	}
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestNewPurgeDeletedStep_DefaultName(t *testing.T) {
-	t.Parallel()
+			opts := tc.cfg.StepOptions()
+			if tc.cfg.Name != "" && opts.Name != tc.cfg.Name {
+				t.Fatalf("expected name %q, got %q", tc.cfg.Name, opts.Name)
+			}
+			if opts.Retries != tc.cfg.Retries {
+				t.Fatalf("expected retries %d, got %d", tc.cfg.Retries, opts.Retries)
+			}
+			if opts.ContinueOnError != tc.cfg.ContinueOnError {
+				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, opts.ContinueOnError)
+			}
 
-	step := NewPurgeDeletedStep(PurgeDeletedStepConfig{})
-	if got, want := step.Name(), "Purge soft-deleted Key Vaults"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+			step := NewPurgeDeletedStep(tc.cfg)
+			if got := step.Name(); got != tc.wantStepName {
+				t.Fatalf("expected step name %q, got %q", tc.wantStepName, got)
+			}
+		})
 	}
 }

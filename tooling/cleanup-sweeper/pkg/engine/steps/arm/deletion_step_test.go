@@ -49,44 +49,44 @@ func TestNewDeletionStep_PanicsWhenSelectorIsInvalid(t *testing.T) {
 	}
 }
 
-func TestNewDeletionStep_DefaultNameForSingleIncludedType(t *testing.T) {
+func TestNewDeletionStep_DefaultNameSelection(t *testing.T) {
 	t.Parallel()
 
-	step := NewDeletionStep(DeletionStepConfig{
-		Selector: ResourceSelector{
-			IncludedResourceTypes: []string{"Microsoft.Network/privateEndpoints"},
+	testCases := []struct {
+		name     string
+		selector ResourceSelector
+		wantName string
+	}{
+		{
+			name: "single included type",
+			selector: ResourceSelector{
+				IncludedResourceTypes: []string{"Microsoft.Network/privateEndpoints"},
+			},
+			wantName: "Delete Microsoft.Network/privateEndpoints",
 		},
-	})
-
-	if got, want := step.Name(), "Delete Microsoft.Network/privateEndpoints"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+		{
+			name: "multiple included types",
+			selector: ResourceSelector{
+				IncludedResourceTypes: []string{"typeA", "typeB"},
+			},
+			wantName: "Delete selected resources",
+		},
+		{
+			name: "excluded types",
+			selector: ResourceSelector{
+				ExcludedResourceTypes: []string{"typeA"},
+			},
+			wantName: "Delete resources excluding selected types",
+		},
 	}
-}
 
-func TestNewDeletionStep_DefaultNameForMultipleIncludedTypes(t *testing.T) {
-	t.Parallel()
-
-	step := NewDeletionStep(DeletionStepConfig{
-		Selector: ResourceSelector{
-			IncludedResourceTypes: []string{"typeA", "typeB"},
-		},
-	})
-
-	if got, want := step.Name(), "Delete selected resources"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
-	}
-}
-
-func TestNewDeletionStep_DefaultNameForExcludedTypes(t *testing.T) {
-	t.Parallel()
-
-	step := NewDeletionStep(DeletionStepConfig{
-		Selector: ResourceSelector{
-			ExcludedResourceTypes: []string{"typeA"},
-		},
-	})
-
-	if got, want := step.Name(), "Delete resources excluding selected types"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			step := NewDeletionStep(DeletionStepConfig{Selector: tc.selector})
+			if got := step.Name(); got != tc.wantName {
+				t.Fatalf("expected %q, got %q", tc.wantName, got)
+			}
+		})
 	}
 }

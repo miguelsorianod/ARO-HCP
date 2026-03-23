@@ -24,51 +24,77 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
-func TestRoleAssignmentsSweeperWorkflow_BuildsSingleStep(t *testing.T) {
+func TestWorkflowBuilders(t *testing.T) {
 	t.Parallel()
 
-	workflow, err := RoleAssignmentsSweeperWorkflow(
-		context.Background(),
-		"00000000-0000-0000-0000-000000000000",
-		nil,
-		WorkflowOptions{
-			DryRun:      true,
-			Wait:        true,
-			Parallelism: 7,
+	testCases := []struct {
+		name       string
+		execute    func(t *testing.T) (interface{}, error)
+		assertions func(t *testing.T, workflow interface{}, err error)
+	}{
+		{
+			name: "role assignments workflow builds single step",
+			execute: func(_ *testing.T) (interface{}, error) {
+				return RoleAssignmentsSweeperWorkflow(
+					context.Background(),
+					"00000000-0000-0000-0000-000000000000",
+					nil,
+					WorkflowOptions{
+						DryRun:      true,
+						Wait:        true,
+						Parallelism: 7,
+					},
+				)
+			},
+			assertions: func(t *testing.T, workflow interface{}, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error while building workflow, got %v", err)
+				}
+				builtWorkflow, ok := workflow.(*runner.Engine)
+				if !ok || builtWorkflow == nil {
+					t.Fatalf("expected *runner.Engine workflow")
+				}
+				if len(builtWorkflow.Steps) != 1 {
+					t.Fatalf("expected one step, got %d", len(builtWorkflow.Steps))
+				}
+				if builtWorkflow.Parallelism != 7 || !builtWorkflow.DryRun || !builtWorkflow.Wait {
+					t.Fatalf("unexpected workflow options: %+v", builtWorkflow)
+				}
+			},
 		},
-	)
-	if err != nil {
-		t.Fatalf("expected no error while building workflow, got %v", err)
+		{
+			name: "resource group ordered workflow propagates canceled context",
+			execute: func(_ *testing.T) (interface{}, error) {
+				baseCtx := runner.ContextWithLogger(context.Background(), logr.Discard())
+				ctx, cancel := context.WithCancel(baseCtx)
+				cancel()
+				return ResourceGroupOrderedCleanupWorkflow(
+					ctx,
+					"rg-example",
+					"00000000-0000-0000-0000-000000000000",
+					nil,
+					WorkflowOptions{},
+				)
+			},
+			assertions: func(t *testing.T, _ interface{}, err error) {
+				t.Helper()
+				if err == nil {
+					t.Fatalf("expected error when context is canceled")
+				}
+				if !strings.Contains(err.Error(), "failed to get resource group") {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+		},
 	}
-	if workflow == nil {
-		t.Fatalf("expected workflow")
-	}
-	if len(workflow.Steps) != 1 {
-		t.Fatalf("expected one step, got %d", len(workflow.Steps))
-	}
-	if workflow.Parallelism != 7 || !workflow.DryRun || !workflow.Wait {
-		t.Fatalf("unexpected workflow options: %+v", workflow)
-	}
-}
 
-func TestResourceGroupOrderedCleanupWorkflow_PropagatesContextCancellation(t *testing.T) {
-	t.Parallel()
-
-	baseCtx := runner.ContextWithLogger(context.Background(), logr.Discard())
-	ctx, cancel := context.WithCancel(baseCtx)
-	cancel()
-
-	_, err := ResourceGroupOrderedCleanupWorkflow(
-		ctx,
-		"rg-example",
-		"00000000-0000-0000-0000-000000000000",
-		nil,
-		WorkflowOptions{},
-	)
-	if err == nil {
-		t.Fatalf("expected error when context is canceled")
-	}
-	if !strings.Contains(err.Error(), "failed to get resource group") {
-		t.Fatalf("unexpected error: %v", err)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			workflow, err := tc.execute(t)
+			tc.assertions(t, workflow, err)
+		})
 	}
 }

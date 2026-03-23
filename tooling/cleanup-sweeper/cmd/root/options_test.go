@@ -36,55 +36,68 @@ func TestRawOptionsValidate_RGOrderedRejectsWhitespaceOnlyResourceGroup(t *testi
 	t.Parallel()
 
 	policyPath := writePolicyFile(t)
-	opts := &RawOptions{
-		SubscriptionID: "sub-id",
-		Workflow:       string(WorkflowRGOrdered),
-		PolicyFile:     policyPath,
-		DryRun:         true,
-		Parallelism:    1,
-		ResourceGroups: []string{"   "},
+	testCases := []struct {
+		name           string
+		opts           RawOptions
+		expectErr      bool
+		errContains    string
+	}{
+		{
+			name: "rg-ordered rejects whitespace-only resource group",
+			opts: RawOptions{
+				SubscriptionID: "sub-id",
+				Workflow:       string(WorkflowRGOrdered),
+				PolicyFile:     policyPath,
+				DryRun:         true,
+				Parallelism:    1,
+				ResourceGroups: []string{"   "},
+			},
+			expectErr:   true,
+			errContains: "requires at least one RG selector or --discover-resource-groups",
+		},
+		{
+			name: "rg-ordered allows trimmed non-empty resource group",
+			opts: RawOptions{
+				SubscriptionID: "sub-id",
+				Workflow:       string(WorkflowRGOrdered),
+				PolicyFile:     policyPath,
+				DryRun:         true,
+				Parallelism:    1,
+				ResourceGroups: []string{"   rg-one   "},
+			},
+			expectErr: false,
+		},
+		{
+			name: "shared-leftovers ignores whitespace selectors",
+			opts: RawOptions{
+				SubscriptionID: "sub-id",
+				Workflow:       string(WorkflowSharedLeftovers),
+				DryRun:         true,
+				Parallelism:    1,
+				ResourceGroups: []string{"   "},
+			},
+			expectErr: false,
+		},
 	}
 
-	_, err := opts.Validate(context.Background())
-	if err == nil {
-		t.Fatalf("expected validation error")
-	}
-	if !strings.Contains(err.Error(), "requires at least one RG selector or --discover-resource-groups") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := tc.opts.Validate(context.Background())
+			if tc.expectErr {
+				if err == nil {
+					t.Fatalf("expected validation error")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
 
-func TestRawOptionsValidate_RGOrderedAllowsTrimmedNonEmptyResourceGroup(t *testing.T) {
-	t.Parallel()
-
-	policyPath := writePolicyFile(t)
-	opts := &RawOptions{
-		SubscriptionID: "sub-id",
-		Workflow:       string(WorkflowRGOrdered),
-		PolicyFile:     policyPath,
-		DryRun:         true,
-		Parallelism:    1,
-		ResourceGroups: []string{"   rg-one   "},
-	}
-
-	if _, err := opts.Validate(context.Background()); err != nil {
-		t.Fatalf("expected validation success, got %v", err)
-	}
-}
-
-func TestRawOptionsValidate_SharedLeftoversIgnoresWhitespaceSelectors(t *testing.T) {
-	t.Parallel()
-
-	opts := &RawOptions{
-		SubscriptionID: "sub-id",
-		Workflow:       string(WorkflowSharedLeftovers),
-		DryRun:         true,
-		Parallelism:    1,
-		ResourceGroups: []string{"   "},
-	}
-
-	if _, err := opts.Validate(context.Background()); err != nil {
-		t.Fatalf("expected validation success, got %v", err)
+			if err != nil {
+				t.Fatalf("expected validation success, got %v", err)
+			}
+		})
 	}
 }
 

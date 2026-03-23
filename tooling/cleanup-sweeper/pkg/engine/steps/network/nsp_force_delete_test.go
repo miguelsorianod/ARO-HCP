@@ -19,29 +19,46 @@ import "testing"
 func TestNSPForceDeleteStepConfig_StepOptions(t *testing.T) {
 	t.Parallel()
 
-	cfg := NSPForceDeleteStepConfig{
-		Name:            "custom-name",
-		Retries:         2,
-		ContinueOnError: true,
+	testCases := []struct {
+		name         string
+		cfg          NSPForceDeleteStepConfig
+		wantStepName string
+	}{
+		{
+			name: "step options projection",
+			cfg: NSPForceDeleteStepConfig{
+				Name:            "custom-name",
+				Retries:         2,
+				ContinueOnError: true,
+			},
+			wantStepName: "custom-name",
+		},
+		{
+			name:         "default step name",
+			cfg:          NSPForceDeleteStepConfig{},
+			wantStepName: "Delete network security perimeters",
+		},
 	}
 
-	opts := cfg.StepOptions()
-	if opts.Name != cfg.Name {
-		t.Fatalf("expected name %q, got %q", cfg.Name, opts.Name)
-	}
-	if opts.Retries != cfg.Retries {
-		t.Fatalf("expected retries %d, got %d", cfg.Retries, opts.Retries)
-	}
-	if opts.ContinueOnError != cfg.ContinueOnError {
-		t.Fatalf("expected continueOnError %t, got %t", cfg.ContinueOnError, opts.ContinueOnError)
-	}
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestNewNSPForceDeleteStep_DefaultName(t *testing.T) {
-	t.Parallel()
+			opts := tc.cfg.StepOptions()
+			if tc.cfg.Name != "" && opts.Name != tc.cfg.Name {
+				t.Fatalf("expected name %q, got %q", tc.cfg.Name, opts.Name)
+			}
+			if opts.Retries != tc.cfg.Retries {
+				t.Fatalf("expected retries %d, got %d", tc.cfg.Retries, opts.Retries)
+			}
+			if opts.ContinueOnError != tc.cfg.ContinueOnError {
+				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, opts.ContinueOnError)
+			}
 
-	step := NewNSPForceDeleteStep(NSPForceDeleteStepConfig{})
-	if got, want := step.Name(), "Delete network security perimeters"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+			step := NewNSPForceDeleteStep(tc.cfg)
+			if got := step.Name(); got != tc.wantStepName {
+				t.Fatalf("expected step name %q, got %q", tc.wantStepName, got)
+			}
+		})
 	}
 }

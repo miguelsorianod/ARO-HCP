@@ -26,60 +26,78 @@ import (
 func TestDeleteStepConfig_StepOptions(t *testing.T) {
 	t.Parallel()
 
-	cfg := DeleteStepConfig{
-		Name:            "custom-name",
-		Retries:         3,
-		ContinueOnError: true,
+	testCases := []struct {
+		name              string
+		cfg               DeleteStepConfig
+		expectDiscoverErr bool
+		wantStepName      string
+		wantTargetName    string
+	}{
+		{
+			name: "step options projection and default discover failure",
+			cfg: DeleteStepConfig{
+				Name:            "custom-name",
+				Retries:         3,
+				ContinueOnError: true,
+			},
+			expectDiscoverErr: true,
+			wantStepName:      "custom-name",
+		},
+		{
+			name:              "default step name",
+			cfg:               DeleteStepConfig{},
+			expectDiscoverErr: true,
+			wantStepName:      "Delete resource group",
+		},
+		{
+			name:              "discover returns target",
+			cfg:               DeleteStepConfig{ResourceGroupName: "rg-example"},
+			expectDiscoverErr: false,
+			wantStepName:      "Delete resource group",
+			wantTargetName:    "rg-example",
+		},
 	}
 
-	opts := cfg.StepOptions()
-	if opts.Name != cfg.Name {
-		t.Fatalf("expected name %q, got %q", cfg.Name, opts.Name)
-	}
-	if opts.Retries != cfg.Retries {
-		t.Fatalf("expected retries %d, got %d", cfg.Retries, opts.Retries)
-	}
-	if opts.ContinueOnError != cfg.ContinueOnError {
-		t.Fatalf("expected continueOnError %t, got %t", cfg.ContinueOnError, opts.ContinueOnError)
-	}
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestNewDeleteStep_DefaultName(t *testing.T) {
-	t.Parallel()
+			opts := tc.cfg.StepOptions()
+			if tc.cfg.Name != "" && opts.Name != tc.cfg.Name {
+				t.Fatalf("expected name %q, got %q", tc.cfg.Name, opts.Name)
+			}
+			if opts.Retries != tc.cfg.Retries {
+				t.Fatalf("expected retries %d, got %d", tc.cfg.Retries, opts.Retries)
+			}
+			if opts.ContinueOnError != tc.cfg.ContinueOnError {
+				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, opts.ContinueOnError)
+			}
 
-	step := NewDeleteStep(DeleteStepConfig{})
-	if got, want := step.Name(), "Delete resource group"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
-	}
-}
+			step := NewDeleteStep(tc.cfg)
+			if got := step.Name(); got != tc.wantStepName {
+				t.Fatalf("expected step name %q, got %q", tc.wantStepName, got)
+			}
 
-func TestDeleteStepDiscover_RequiresResourceGroupName(t *testing.T) {
-	t.Parallel()
-
-	step := NewDeleteStep(DeleteStepConfig{})
-	ctx := runner.ContextWithLogger(context.Background(), logr.Discard())
-	if _, err := step.Discover(ctx); err == nil {
-		t.Fatalf("expected error for empty resource group name")
-	}
-}
-
-func TestDeleteStepDiscover_ReturnsTarget(t *testing.T) {
-	t.Parallel()
-
-	step := NewDeleteStep(DeleteStepConfig{ResourceGroupName: "rg-example"})
-	ctx := runner.ContextWithLogger(context.Background(), logr.Discard())
-
-	targets, err := step.Discover(ctx)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(targets) != 1 {
-		t.Fatalf("expected 1 target, got %d", len(targets))
-	}
-	if targets[0].Name != "rg-example" {
-		t.Fatalf("unexpected target name %q", targets[0].Name)
-	}
-	if targets[0].Type != ResourceType {
-		t.Fatalf("unexpected target type %q", targets[0].Type)
+			ctx := runner.ContextWithLogger(context.Background(), logr.Discard())
+			targets, err := step.Discover(ctx)
+			if tc.expectDiscoverErr {
+				if err == nil {
+					t.Fatalf("expected discover error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if len(targets) != 1 {
+				t.Fatalf("expected 1 target, got %d", len(targets))
+			}
+			if targets[0].Name != tc.wantTargetName {
+				t.Fatalf("unexpected target name %q", targets[0].Name)
+			}
+			if targets[0].Type != ResourceType {
+				t.Fatalf("unexpected target type %q", targets[0].Type)
+			}
+		})
 	}
 }

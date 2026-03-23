@@ -23,58 +23,79 @@ import (
 func TestEscapeODataString_EscapesSingleQuotes(t *testing.T) {
 	t.Parallel()
 
-	got := escapeODataString("O'Hara Team")
-	if want := "O''Hara Team"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+	testCases := []struct {
+		name string
+		in   string
+		want string
+		fn   func(string) string
+	}{
+		{
+			name: "escape OData string single quotes",
+			in:   "O'Hara Team",
+			want: "O''Hara Team",
+			fn:   escapeODataString,
+		},
+		{
+			name: "normalize ID trims and lowercases",
+			in:   "  /SUBSCRIPTIONS/ABC  ",
+			want: "/subscriptions/abc",
+			fn:   normalizeID,
+		},
 	}
-}
 
-func TestNormalizeID_TrimsAndLowercases(t *testing.T) {
-	t.Parallel()
-
-	got := normalizeID("  /SUBSCRIPTIONS/ABC  ")
-	if want := "/subscriptions/abc"; got != want {
-		t.Fatalf("expected %q, got %q", want, got)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.fn(tc.in); got != tc.want {
+				t.Fatalf("expected %q, got %q", tc.want, got)
+			}
+		})
 	}
 }
 
 func TestAssignmentWithinResourceGroupScope_UsesScopeWhenPresent(t *testing.T) {
 	t.Parallel()
 
-	role := &armauthorization.RoleAssignment{
-		Properties: &armauthorization.RoleAssignmentProperties{
-			Scope: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Compute/virtualMachines/vm1"),
+	testCases := []struct {
+		name string
+		role *armauthorization.RoleAssignment
+		want bool
+	}{
+		{
+			name: "uses scope when present",
+			role: &armauthorization.RoleAssignment{
+				Properties: &armauthorization.RoleAssignmentProperties{
+					Scope: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Compute/virtualMachines/vm1"),
+				},
+			},
+			want: true,
+		},
+		{
+			name: "falls back to ID",
+			role: &armauthorization.RoleAssignment{
+				ID: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Authorization/roleAssignments/ra1"),
+			},
+			want: true,
+		},
+		{
+			name: "rejects non-RG scope",
+			role: &armauthorization.RoleAssignment{
+				Properties: &armauthorization.RoleAssignmentProperties{
+					Scope: strPtr("/subscriptions/abc"),
+				},
+			},
+			want: false,
 		},
 	}
 
-	if !assignmentWithinResourceGroupScope(role, "/subscriptions/abc/resourcegroups/") {
-		t.Fatalf("expected assignment to be within resource-group scope")
-	}
-}
-
-func TestAssignmentWithinResourceGroupScope_FallsBackToID(t *testing.T) {
-	t.Parallel()
-
-	role := &armauthorization.RoleAssignment{
-		ID: strPtr("/subscriptions/abc/resourceGroups/rg-one/providers/Microsoft.Authorization/roleAssignments/ra1"),
-	}
-
-	if !assignmentWithinResourceGroupScope(role, "/subscriptions/abc/resourcegroups/") {
-		t.Fatalf("expected assignment ID fallback to match resource-group scope")
-	}
-}
-
-func TestAssignmentWithinResourceGroupScope_RejectsNonRGScope(t *testing.T) {
-	t.Parallel()
-
-	role := &armauthorization.RoleAssignment{
-		Properties: &armauthorization.RoleAssignmentProperties{
-			Scope: strPtr("/subscriptions/abc"),
-		},
-	}
-
-	if assignmentWithinResourceGroupScope(role, "/subscriptions/abc/resourcegroups/") {
-		t.Fatalf("expected non-resource-group scope to be rejected")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := assignmentWithinResourceGroupScope(tc.role, "/subscriptions/abc/resourcegroups/")
+			if got != tc.want {
+				t.Fatalf("expected %t, got %t", tc.want, got)
+			}
+		})
 	}
 }
 

@@ -26,43 +26,63 @@ import (
 	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
-func TestDiscoverCandidates_ExplicitOnly(t *testing.T) {
+func TestDiscoverCandidates(t *testing.T) {
 	t.Parallel()
 
-	opts := RunOptions{
-		DiscoverResourceGroups: false,
-		ResourceGroups:         sets.New("rg-b", "rg-a"),
+	testCases := []struct {
+		name        string
+		opts        RunOptions
+		expectErr   bool
+		errContains string
+		want        []string
+	}{
+		{
+			name: "explicit-only candidates are sorted",
+			opts: RunOptions{
+				DiscoverResourceGroups: false,
+				ResourceGroups:         sets.New("rg-b", "rg-a"),
+			},
+			expectErr: false,
+			want:      []string{"rg-a", "rg-b"},
+		},
+		{
+			name: "discovery requires reference time when enabled",
+			opts: RunOptions{
+				DiscoverResourceGroups: true,
+				ResourceGroups:         sets.New[string](),
+				ReferenceTime:          time.Time{},
+			},
+			expectErr:   true,
+			errContains: "reference time is required",
+		},
 	}
 
-	ctx := cleanuprunner.ContextWithLogger(context.Background(), logr.Discard())
-	got, err := discoverCandidates(ctx, opts)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if len(got) != 2 {
-		t.Fatalf("expected 2 resource groups, got %d", len(got))
-	}
-	if got[0] != "rg-a" || got[1] != "rg-b" {
-		t.Fatalf("expected sorted resource groups [rg-a rg-b], got %v", got)
-	}
-}
-
-func TestDiscoverCandidates_RequiresReferenceTimeWhenDiscoveryEnabled(t *testing.T) {
-	t.Parallel()
-
-	opts := RunOptions{
-		DiscoverResourceGroups: true,
-		ResourceGroups:         sets.New[string](),
-		ReferenceTime:          time.Time{},
-	}
-
-	ctx := cleanuprunner.ContextWithLogger(context.Background(), logr.Discard())
-	_, err := discoverCandidates(ctx, opts)
-	if err == nil {
-		t.Fatalf("expected error when reference time is zero")
-	}
-	if !strings.Contains(err.Error(), "reference time is required") {
-		t.Fatalf("unexpected error: %v", err)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := cleanuprunner.ContextWithLogger(context.Background(), logr.Discard())
+			got, err := discoverCandidates(ctx, tc.opts)
+			if tc.expectErr {
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("expected %d resource groups, got %d", len(tc.want), len(got))
+			}
+			for idx := range tc.want {
+				if got[idx] != tc.want[idx] {
+					t.Fatalf("expected sorted resource groups %v, got %v", tc.want, got)
+				}
+			}
+		})
 	}
 }

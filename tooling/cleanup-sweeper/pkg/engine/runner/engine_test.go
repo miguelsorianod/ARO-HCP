@@ -66,152 +66,201 @@ func (f *fakeStep) RetryLimit() int {
 
 func (f *fakeStep) ContinueOnError() bool { return f.continueOnError }
 
-func TestEngineRun_DryRunSkipsDeleteAndVerify(t *testing.T) {
+func TestEngineRun(t *testing.T) {
 	t.Parallel()
 
-	step := &fakeStep{
-		name:    "dry-run-step",
-		targets: []Target{{ID: "a"}, {ID: "b"}},
-	}
-	engine := &Engine{
-		Steps:       []Step{step},
-		DryRun:      true,
-		Parallelism: 1,
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	if err := engine.Run(ctx); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if step.deleteCalls != 0 {
-		t.Fatalf("expected no delete calls in dry-run, got %d", step.deleteCalls)
-	}
-	if step.verifyCalls != 0 {
-		t.Fatalf("expected no verify calls in dry-run, got %d", step.verifyCalls)
-	}
-}
-
-func TestEngineRun_DeleteErrorContinuesWhenConfigured(t *testing.T) {
-	t.Parallel()
-
-	step := &fakeStep{
-		name:            "continue-step",
-		targets:         []Target{{ID: "x"}},
-		deleteErrByID:   map[string]error{"x": errors.New("boom")},
-		continueOnError: true,
-	}
-	engine := &Engine{
-		Steps:       []Step{step},
-		Parallelism: 1,
+	type testCase struct {
+		name              string
+		step              *fakeStep
+		parallelism       int
+		dryRun            bool
+		enablePostRunFn   bool
+		assertions        func(t *testing.T, err error, step *fakeStep, postRunCalled bool)
 	}
 
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	if err := engine.Run(ctx); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-}
-
-func TestEngineRun_DeleteErrorFailsWhenNotContinuable(t *testing.T) {
-	t.Parallel()
-
-	step := &fakeStep{
-		name:            "fail-step",
-		targets:         []Target{{ID: "x", Name: "res-x", Type: "example/type"}},
-		deleteErrByID:   map[string]error{"x": errors.New("boom")},
-		continueOnError: false,
-	}
-	engine := &Engine{
-		Steps:       []Step{step},
-		Parallelism: 1,
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	err := engine.Run(ctx)
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "failed deleting") {
-		t.Fatalf("expected delete failure error, got %v", err)
-	}
-}
-
-func TestEngineRun_DeleteErrorsAreJoinedWhenNotContinuable(t *testing.T) {
-	t.Parallel()
-
-	step := &fakeStep{
-		name: "fail-step",
-		targets: []Target{
-			{ID: "x", Name: "res-x", Type: "example/type"},
-			{ID: "y", Name: "res-y", Type: "example/type"},
+	testCases := []testCase{
+		{
+			name: "dry-run skips delete and verify",
+			step: &fakeStep{
+				name:    "dry-run-step",
+				targets: []Target{{ID: "a"}, {ID: "b"}},
+			},
+			parallelism: 1,
+			dryRun:      true,
+			assertions: func(t *testing.T, err error, step *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if step.deleteCalls != 0 {
+					t.Fatalf("expected no delete calls in dry-run, got %d", step.deleteCalls)
+				}
+				if step.verifyCalls != 0 {
+					t.Fatalf("expected no verify calls in dry-run, got %d", step.verifyCalls)
+				}
+			},
 		},
-		deleteErrByID: map[string]error{
-			"x": errors.New("boom-x"),
-			"y": errors.New("boom-y"),
+		{
+			name: "delete error continues when configured",
+			step: &fakeStep{
+				name:            "continue-step",
+				targets:         []Target{{ID: "x"}},
+				deleteErrByID:   map[string]error{"x": errors.New("boom")},
+				continueOnError: true,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+			},
 		},
-		continueOnError: false,
-	}
-	engine := &Engine{
-		Steps:       []Step{step},
-		Parallelism: 2,
+		{
+			name: "delete error fails when not continuable",
+			step: &fakeStep{
+				name:            "fail-step",
+				targets:         []Target{{ID: "x", Name: "res-x", Type: "example/type"}},
+				deleteErrByID:   map[string]error{"x": errors.New("boom")},
+				continueOnError: false,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
+				t.Helper()
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				if !strings.Contains(err.Error(), "failed deleting") {
+					t.Fatalf("expected delete failure error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "delete errors are joined when not continuable",
+			step: &fakeStep{
+				name: "fail-step",
+				targets: []Target{
+					{ID: "x", Name: "res-x", Type: "example/type"},
+					{ID: "y", Name: "res-y", Type: "example/type"},
+				},
+				deleteErrByID: map[string]error{
+					"x": errors.New("boom-x"),
+					"y": errors.New("boom-y"),
+				},
+				continueOnError: false,
+			},
+			parallelism: 2,
+			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
+				t.Helper()
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				if !strings.Contains(err.Error(), "res-x") {
+					t.Fatalf("expected joined error to contain res-x failure, got %v", err)
+				}
+				if !strings.Contains(err.Error(), "res-y") {
+					t.Fatalf("expected joined error to contain res-y failure, got %v", err)
+				}
+			},
+		},
+		{
+			name: "discover error fails even when continuable",
+			step: &fakeStep{
+				name:            "discover-fail-step",
+				discoverErr:     errors.New("discover boom"),
+				continueOnError: true,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
+				t.Helper()
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				if !strings.Contains(err.Error(), "discovery failed") {
+					t.Fatalf("expected discovery failure error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "verify error fails even when continuable",
+			step: &fakeStep{
+				name:            "verify-fail-step",
+				targets:         []Target{{ID: "x"}},
+				verifyErr:       errors.New("verify boom"),
+				continueOnError: true,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
+				t.Helper()
+				if err == nil {
+					t.Fatalf("expected error")
+				}
+				if !strings.Contains(err.Error(), "verification failed") {
+					t.Fatalf("expected verification failure error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "post-run callback is called on successful step execution",
+			step: &fakeStep{
+				name:    "post-run-success-step",
+				targets: []Target{{ID: "a"}},
+			},
+			parallelism:     1,
+			enablePostRunFn: true,
+			assertions: func(t *testing.T, err error, _ *fakeStep, postRunCalled bool) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if !postRunCalled {
+					t.Fatal("expected PostRunFn to be called")
+				}
+			},
+		},
+		{
+			name: "post-run callback is not called on step failure",
+			step: &fakeStep{
+				name:          "post-run-fail-step",
+				targets:       []Target{{ID: "x", Name: "x", Type: "t"}},
+				deleteErrByID: map[string]error{"x": errors.New("boom")},
+			},
+			parallelism:     1,
+			enablePostRunFn: true,
+			assertions: func(t *testing.T, err error, _ *fakeStep, postRunCalled bool) {
+				t.Helper()
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if postRunCalled {
+					t.Fatal("PostRunFn should not be called when a step fails")
+				}
+			},
+		},
 	}
 
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	err := engine.Run(ctx)
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "res-x") {
-		t.Fatalf("expected joined error to contain res-x failure, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "res-y") {
-		t.Fatalf("expected joined error to contain res-y failure, got %v", err)
-	}
-}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestEngineRun_DiscoverErrorFailsEvenWhenContinuable(t *testing.T) {
-	t.Parallel()
+			postRunCalled := false
+			engine := &Engine{
+				Steps:       []Step{tc.step},
+				DryRun:      tc.dryRun,
+				Parallelism: tc.parallelism,
+			}
+			if tc.enablePostRunFn {
+				engine.PostRunFn = func(_ context.Context) error {
+					postRunCalled = true
+					return nil
+				}
+			}
 
-	step := &fakeStep{
-		name:            "discover-fail-step",
-		discoverErr:     errors.New("discover boom"),
-		continueOnError: true,
-	}
-	engine := &Engine{
-		Steps:       []Step{step},
-		Parallelism: 1,
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	err := engine.Run(ctx)
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "discovery failed") {
-		t.Fatalf("expected discovery failure error, got %v", err)
-	}
-}
-
-func TestEngineRun_VerifyErrorFailsEvenWhenContinuable(t *testing.T) {
-	t.Parallel()
-
-	step := &fakeStep{
-		name:            "verify-fail-step",
-		targets:         []Target{{ID: "x"}},
-		verifyErr:       errors.New("verify boom"),
-		continueOnError: true,
-	}
-	engine := &Engine{
-		Steps:       []Step{step},
-		Parallelism: 1,
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	err := engine.Run(ctx)
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "verification failed") {
-		t.Fatalf("expected verification failure error, got %v", err)
+			ctx := ContextWithLogger(context.Background(), logr.Discard())
+			err := engine.Run(ctx)
+			tc.assertions(t, err, tc.step, postRunCalled)
+		})
 	}
 }
 
@@ -251,50 +300,3 @@ func TestDeletionStepRetryLimit_MinimumOne(t *testing.T) {
 	}
 }
 
-func TestEngineRun_PostRunFnCalled(t *testing.T) {
-	t.Parallel()
-
-	called := false
-	engine := &Engine{
-		Steps:       []Step{&fakeStep{name: "s", targets: []Target{{ID: "a"}}}},
-		Parallelism: 1,
-		PostRunFn: func(_ context.Context) error {
-			called = true
-			return nil
-		},
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	if err := engine.Run(ctx); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !called {
-		t.Fatal("expected PostRunFn to be called")
-	}
-}
-
-func TestEngineRun_PostRunFnNotCalledOnStepError(t *testing.T) {
-	t.Parallel()
-
-	called := false
-	engine := &Engine{
-		Steps: []Step{&fakeStep{
-			name:          "fail",
-			targets:       []Target{{ID: "x", Name: "x", Type: "t"}},
-			deleteErrByID: map[string]error{"x": errors.New("boom")},
-		}},
-		Parallelism: 1,
-		PostRunFn: func(_ context.Context) error {
-			called = true
-			return nil
-		},
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	if err := engine.Run(ctx); err == nil {
-		t.Fatal("expected error")
-	}
-	if called {
-		t.Fatal("PostRunFn should not be called when a step fails")
-	}
-}
