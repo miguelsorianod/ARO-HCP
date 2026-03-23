@@ -216,10 +216,10 @@ spec:
           protocol: TCP
         resources:
           limits:
-            memory: 1Gi
+            memory: 2Gi
           requests:
             cpu: 100m
-            memory: 500Mi
+            memory: 1Gi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
