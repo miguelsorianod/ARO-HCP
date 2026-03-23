@@ -16,11 +16,12 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
-	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -86,47 +87,71 @@ func (e *Engine) runStep(ctx context.Context, step Step) error {
 		return nil
 	}
 
-	sem := make(chan struct{}, e.Parallelism)
-	group, groupCtx := errgroup.WithContext(ctx)
-	for _, target := range targets {
-		if ctx.Err() != nil {
-			break
-		}
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			continue
-		}
-		group.Go(func() error {
-			defer func() { <-sem }()
-			err := retry(groupCtx, step.RetryLimit(), func() error {
-				return step.Delete(groupCtx, target, e.Wait)
-			})
-			if err != nil {
-				if step.ContinueOnError() {
+	jobs := make(chan Target)
+	errs := make(chan error, len(targets))
+
+	var wg sync.WaitGroup
+	wg.Add(e.Parallelism)
+	for i := 0; i < e.Parallelism; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case target, ok := <-jobs:
+					if !ok {
+						return
+					}
+					err := retry(ctx, step.RetryLimit(), func() error {
+						return step.Delete(ctx, target, e.Wait)
+					})
+					if err != nil {
+						if step.ContinueOnError() {
+							logger.Info(
+								"Deletion failed but continuing",
+								"step", step.Name(),
+								"resource", target.Name,
+								"type", target.Type,
+								"error", err,
+							)
+							continue
+						}
+						errs <- fmt.Errorf("%s: failed deleting %s (%s): %w", step.Name(), target.Name, target.Type, err)
+						continue
+					}
 					logger.Info(
-						"Deletion failed but continuing",
+						"Deleted resource",
 						"step", step.Name(),
 						"resource", target.Name,
 						"type", target.Type,
-						"error", err,
+						"id", target.ID,
 					)
-					return nil
 				}
-				return fmt.Errorf("%s: failed deleting %s (%s): %w", step.Name(), target.Name, target.Type, err)
 			}
-			logger.Info(
-				"Deleted resource",
-				"step", step.Name(),
-				"resource", target.Name,
-				"type", target.Type,
-				"id", target.ID,
-			)
-			return nil
-		})
+		}()
 	}
-	if err := group.Wait(); err != nil {
-		return err
+
+	enqueueTargets := func() {
+		defer close(jobs)
+		for _, target := range targets {
+			select {
+			case <-ctx.Done():
+				return
+			case jobs <- target:
+			}
+		}
+	}
+	enqueueTargets()
+	wg.Wait()
+	close(errs)
+
+	collectedErrs := make([]error, 0)
+	for err := range errs {
+		collectedErrs = append(collectedErrs, err)
+	}
+	if len(collectedErrs) > 0 {
+		return errors.Join(collectedErrs...)
 	}
 
 	if err := step.Verify(ctx); err != nil {

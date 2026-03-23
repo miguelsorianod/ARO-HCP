@@ -101,7 +101,7 @@ type completedOptions struct {
 	Wait        bool
 	Parallelism int
 
-	DiscoverResourceGroups   bool
+	DiscoverResourceGroups bool
 
 	ResourceGroups sets.Set[string]
 }
@@ -174,17 +174,17 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			AzureCredential:          cred,
-			Policy:                   o.policy,
-			Workflow:                 o.workflow,
-			SubscriptionID:           subscriptionID,
-			PolicyFile:               policyFile,
-			ReferenceTime:            referenceTime,
-			DryRun:                   o.DryRun,
-			Wait:                     o.Wait,
-			Parallelism:              o.Parallelism,
-			DiscoverResourceGroups:   o.DiscoverResourceGroups,
-			ResourceGroups:           resourceGroups,
+			AzureCredential:        cred,
+			Policy:                 o.policy,
+			Workflow:               o.workflow,
+			SubscriptionID:         subscriptionID,
+			PolicyFile:             policyFile,
+			ReferenceTime:          referenceTime,
+			DryRun:                 o.DryRun,
+			Wait:                   o.Wait,
+			Parallelism:            o.Parallelism,
+			DiscoverResourceGroups: o.DiscoverResourceGroups,
+			ResourceGroups:         resourceGroups,
 		},
 	}, nil
 }

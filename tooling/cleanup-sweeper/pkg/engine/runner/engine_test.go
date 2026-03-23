@@ -135,6 +135,39 @@ func TestEngineRun_DeleteErrorFailsWhenNotContinuable(t *testing.T) {
 	}
 }
 
+func TestEngineRun_DeleteErrorsAreJoinedWhenNotContinuable(t *testing.T) {
+	t.Parallel()
+
+	step := &fakeStep{
+		name: "fail-step",
+		targets: []Target{
+			{ID: "x", Name: "res-x", Type: "example/type"},
+			{ID: "y", Name: "res-y", Type: "example/type"},
+		},
+		deleteErrByID: map[string]error{
+			"x": errors.New("boom-x"),
+			"y": errors.New("boom-y"),
+		},
+		continueOnError: false,
+	}
+	engine := &Engine{
+		Steps:       []Step{step},
+		Parallelism: 2,
+	}
+
+	ctx := ContextWithLogger(context.Background(), logr.Discard())
+	err := engine.Run(ctx)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "res-x") {
+		t.Fatalf("expected joined error to contain res-x failure, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "res-y") {
+		t.Fatalf("expected joined error to contain res-y failure, got %v", err)
+	}
+}
+
 func TestEngineRun_DiscoverErrorFailsEvenWhenContinuable(t *testing.T) {
 	t.Parallel()
 
