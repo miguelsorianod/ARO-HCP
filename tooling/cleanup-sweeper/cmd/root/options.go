@@ -17,7 +17,6 @@ package root
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -61,11 +60,6 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.DiscoverResourceGroups, "discover-resource-groups", opts.DiscoverResourceGroups, fmt.Sprintf("Discover candidate resource groups from policy rules (default: %t).", opts.DiscoverResourceGroups))
 	cmd.Flags().StringSliceVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "Explicit resource group target (repeatable).")
 
-	cmd.Flags().StringSliceVar(&opts.RequireTags, "require-tag", opts.RequireTags, "Require tag filter in k=v format (repeatable).")
-	cmd.Flags().StringSliceVar(&opts.ExcludeNameRegexes, "exclude-name-regex", opts.ExcludeNameRegexes, "Exclude resources by name regex (repeatable).")
-	cmd.Flags().StringSliceVar(&opts.ExcludeIDRegexes, "exclude-id-regex", opts.ExcludeIDRegexes, "Exclude resources by ID regex (repeatable).")
-	cmd.Flags().BoolVar(&opts.FailOnDiscoveryError, "fail-on-discovery-error", opts.FailOnDiscoveryError, fmt.Sprintf("Fail immediately on discovery errors (default: %t).", opts.FailOnDiscoveryError))
-
 	return nil
 }
 
@@ -80,12 +74,6 @@ type RawOptions struct {
 
 	DiscoverResourceGroups bool
 	ResourceGroups         []string
-
-	RequireTags        []string
-	ExcludeNameRegexes []string
-	ExcludeIDRegexes   []string
-
-	FailOnDiscoveryError bool
 }
 
 type validatedOptions struct {
@@ -113,14 +101,9 @@ type completedOptions struct {
 	Wait        bool
 	Parallelism int
 
-	DiscoverResourceGroups bool
-	FailOnDiscoveryError   bool
+	DiscoverResourceGroups   bool
 
 	ResourceGroups sets.Set[string]
-
-	RequireTags        map[string]string
-	ExcludeNameRegexes []*regexp.Regexp
-	ExcludeIDRegexes   []*regexp.Regexp
 }
 
 type Options struct {
@@ -184,19 +167,6 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 	resourceGroups := setFromTrimmed(o.ResourceGroups)
 
-	excludeNameRegexes, err := compileRegexSlice(sets.List(setFromTrimmed(o.ExcludeNameRegexes)), "--exclude-name-regex")
-	if err != nil {
-		return nil, err
-	}
-	excludeIDRegexes, err := compileRegexSlice(sets.List(setFromTrimmed(o.ExcludeIDRegexes)), "--exclude-id-regex")
-	if err != nil {
-		return nil, err
-	}
-	requireTags, err := parseRequiredTags(sets.List(setFromTrimmed(o.RequireTags)))
-	if err != nil {
-		return nil, err
-	}
-
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{RequireAzureTokenCredentials: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
@@ -204,21 +174,17 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			AzureCredential:        cred,
-			Policy:                 o.policy,
-			Workflow:               o.workflow,
-			SubscriptionID:         subscriptionID,
-			PolicyFile:             policyFile,
-			ReferenceTime:          referenceTime,
-			DryRun:                 o.DryRun,
-			Wait:                   o.Wait,
-			Parallelism:            o.Parallelism,
-			DiscoverResourceGroups: o.DiscoverResourceGroups,
-			FailOnDiscoveryError:   o.FailOnDiscoveryError,
-			ResourceGroups:         resourceGroups,
-			RequireTags:            requireTags,
-			ExcludeNameRegexes:     excludeNameRegexes,
-			ExcludeIDRegexes:       excludeIDRegexes,
+			AzureCredential:          cred,
+			Policy:                   o.policy,
+			Workflow:                 o.workflow,
+			SubscriptionID:           subscriptionID,
+			PolicyFile:               policyFile,
+			ReferenceTime:            referenceTime,
+			DryRun:                   o.DryRun,
+			Wait:                     o.Wait,
+			Parallelism:              o.Parallelism,
+			DiscoverResourceGroups:   o.DiscoverResourceGroups,
+			ResourceGroups:           resourceGroups,
 		},
 	}, nil
 }
@@ -242,7 +208,6 @@ func (o *Options) Run(ctx context.Context) error {
 			Parallelism:            o.Parallelism,
 			DiscoverResourceGroups: o.DiscoverResourceGroups,
 			ResourceGroups:         o.ResourceGroups,
-			FailOnDiscoveryError:   o.FailOnDiscoveryError,
 			Policy:                 o.Policy.RGOrdered,
 			ReferenceTime:          o.ReferenceTime,
 		})
@@ -277,30 +242,6 @@ func parseWorkflowMode(raw string) (WorkflowMode, error) {
 	default:
 		return "", fmt.Errorf("--workflow must be one of: %s, %s", WorkflowRGOrdered, WorkflowSharedLeftovers)
 	}
-}
-
-func compileRegexSlice(raw []string, flagName string) ([]*regexp.Regexp, error) {
-	out := make([]*regexp.Regexp, 0, len(raw))
-	for _, expr := range raw {
-		re, err := regexp.Compile(expr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid regex for %s: %q: %w", flagName, expr, err)
-		}
-		out = append(out, re)
-	}
-	return out, nil
-}
-
-func parseRequiredTags(raw []string) (map[string]string, error) {
-	out := make(map[string]string, len(raw))
-	for _, entry := range raw {
-		parts := strings.SplitN(entry, "=", 2)
-		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
-			return nil, fmt.Errorf("invalid --require-tag value %q, expected k=v", entry)
-		}
-		out[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-	}
-	return out, nil
 }
 
 func hasRGOrderedSelectors(discoverResourceGroups bool, resourceGroups sets.Set[string]) bool {

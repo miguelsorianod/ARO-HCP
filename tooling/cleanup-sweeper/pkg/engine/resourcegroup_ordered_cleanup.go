@@ -86,7 +86,7 @@ func ResourceGroupOrderedCleanupWorkflow(
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 			runner.LoggerFromContext(ctx).Info(
-				"Resource group not found; skipping ordered cleanup workflow",
+				"Resource group already deleted; skipping ordered cleanup workflow",
 				"resourceGroup", resourceGroupName,
 				"subscriptionID", subscriptionID,
 			)

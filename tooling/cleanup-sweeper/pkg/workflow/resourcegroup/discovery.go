@@ -83,9 +83,6 @@ func discoverPolicyCandidates(
 
 	resourceGroups, err := listResourceGroups(ctx, rgClient)
 	if err != nil {
-		if opts.FailOnDiscoveryError {
-			return nil, fmt.Errorf("failed listing resource groups: %w", err)
-		}
 		logger.Info("Failed to list resource groups; continuing with explicit targets", "error", err)
 		return discoveredResourceGroups, nil
 	}

@@ -38,7 +38,6 @@ type RunOptions struct {
 
 	DiscoverResourceGroups bool
 	ResourceGroups         sets.Set[string]
-	FailOnDiscoveryError   bool
 	ReferenceTime          time.Time
 
 	Policy policy.RGOrderedPolicy
@@ -75,12 +74,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 			},
 		)
 		if err != nil {
+			rgLogger.Error(err, "Failed building rg-ordered workflow; continuing with next resource group")
 			runErrors = append(runErrors, fmt.Errorf("failed building rg-ordered workflow: %w", err))
 			continue
 		}
 
 		rgLogger.Info("Running rg-ordered cleanup")
 		if err := workflow.Run(rgCtx); err != nil {
+			rgLogger.Error(err, "rg-ordered cleanup failed for resource group; continuing with next resource group")
 			runErrors = append(runErrors, fmt.Errorf("rg-ordered cleanup failed: %w", err))
 			continue
 		}
