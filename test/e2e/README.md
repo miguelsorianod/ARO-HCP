@@ -33,7 +33,7 @@ There is a [`aro-hcp-tests-run-aro-hcp-tests` step](https://steps.ci.openshift.o
 in OpenShift CI step registry which can run a test suite of per-run test cases.
 
 This is used in jobs such as
-`periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel`.
+`branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel`.
 
 #### Running per-run test cases with per-test cluster locally
 
