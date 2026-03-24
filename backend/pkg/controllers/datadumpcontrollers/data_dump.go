@@ -16,8 +16,10 @@ package datadumpcontrollers
 
 import (
 	"context"
+	"time"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
@@ -32,15 +34,25 @@ type dataDump struct {
 	nextDataDumpChecker controllerutils.CooldownChecker
 }
 
-// NewDataDumpController periodically lists all clusters and for each out when the cluster was created and its state.
-func NewDataDumpController(activeOperationLister listers.ActiveOperationLister, cosmosClient database.DBClient) controllerutils.ClusterSyncer {
-	c := &dataDump{
+// NewDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
+func NewDataDumpController(
+	cosmosClient database.DBClient,
+	activeOperationLister listers.ActiveOperationLister,
+	backendInformers informers.BackendInformers,
+) controllerutils.Controller {
+	syncer := &dataDump{
 		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:        cosmosClient,
 		nextDataDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
-	return c
+	return controllerutils.NewClusterWatchingController(
+		"DataDump",
+		cosmosClient,
+		backendInformers,
+		1*time.Minute,
+		syncer,
+	)
 }
 
 func (c *dataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

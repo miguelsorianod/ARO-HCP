@@ -18,10 +18,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -44,17 +46,28 @@ type csStateWatcher struct {
 
 // NewCSStateWatcherController watches cluster-service state and sets a degraded condition
 // on the controller record if the cluster or any of its resources are in a failed or pending state.
-// We do this so that we can see degraded in our metrics.  This also forms the basis for how we can report
+// We do this so that we can see degraded in our metrics. This also forms the basis for how we can report
 // failures on the operation.
-func NewCSStateWatcherController(activeOperationLister listers.ActiveOperationLister, cosmosClient database.DBClient, csClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
-	c := &csStateWatcher{
+func NewCSStateWatcherController(
+	cosmosClient database.DBClient,
+	activeOperationLister listers.ActiveOperationLister,
+	backendInformers informers.BackendInformers,
+	csClient ocm.ClusterServiceClientSpec,
+) controllerutils.Controller {
+	syncer := &csStateWatcher{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:    cosmosClient,
 		csClient:        csClient,
 		nextSyncChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
-	return c
+	return controllerutils.NewClusterWatchingController(
+		"CSStateWatcher",
+		cosmosClient,
+		backendInformers,
+		1*time.Minute,
+		syncer,
+	)
 }
 
 func (c *csStateWatcher) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

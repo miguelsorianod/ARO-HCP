@@ -261,12 +261,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
-	dataDumpController := controllerutils.NewClusterWatchingController(
-		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, datadumpcontrollers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
-	csStateDumpController := controllerutils.NewClusterWatchingController(
-		"CSStateDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, datadumpcontrollers.NewCSStateDumpController(activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient))
-	csStateWatcherController := controllerutils.NewClusterWatchingController(
-		"CSStateWatcher", b.options.CosmosDBClient, backendInformers, 1*time.Minute, datadumpcontrollers.NewCSStateWatcherController(activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient))
+	dataDumpController := datadumpcontrollers.NewDataDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
+	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers, b.options.ClustersServiceClient)
+	csStateWatcherController := datadumpcontrollers.NewCSStateWatcherController(b.options.CosmosDBClient, activeOperationLister, backendInformers, b.options.ClustersServiceClient)
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",

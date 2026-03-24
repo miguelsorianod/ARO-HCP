@@ -20,11 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -41,16 +43,26 @@ type csStateDump struct {
 }
 
 // NewCSStateDumpController periodically fetches cluster-service state for each cluster and dumps it to logs.
-// It uses the same cadence as the DataDump controller.
-func NewCSStateDumpController(activeOperationLister listers.ActiveOperationLister, cosmosClient database.DBClient, csClient ocm.ClusterServiceClientSpec) controllerutils.ClusterSyncer {
-	c := &csStateDump{
+func NewCSStateDumpController(
+	cosmosClient database.DBClient,
+	activeOperationLister listers.ActiveOperationLister,
+	backendInformers informers.BackendInformers,
+	csClient ocm.ClusterServiceClientSpec,
+) controllerutils.Controller {
+	syncer := &csStateDump{
 		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:    cosmosClient,
 		csClient:        csClient,
 		nextDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
-	return c
+	return controllerutils.NewClusterWatchingController(
+		"CSStateDump",
+		cosmosClient,
+		backendInformers,
+		1*time.Minute,
+		syncer,
+	)
 }
 
 func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
