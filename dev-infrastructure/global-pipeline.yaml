@@ -134,6 +134,8 @@ resourceGroups:
       configRef: ev2.assistedId.certificate.name
     dstsHost:
       configRef: ev2.assistedId.dstsHost
+    deploymentMode:
+      value: "Incremental"
     dependsOn:
     - resourceGroup: singleton
       step: infra
@@ -150,6 +152,8 @@ resourceGroups:
       configRef: ev2.assistedId.certificate.name
     dstsHost:
       configRef: ev2.assistedId.dstsHost
+    deploymentMode:
+      value: "Incremental"
     dependsOn:
     - resourceGroup: singleton
       step: infra
