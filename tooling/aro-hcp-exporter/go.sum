@@ -1,5 +1,3 @@
-github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90 h1:QMy7xRWaR7MkPkceNFgq0+JVwFj8ssQWENkTtq0TCg4=
-github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90/go.mod h1:fMtT21l0RwIHNSllUnE+b2F35Qan5XLcW0lmEGcRWqU=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 h1:fou+2+WFTib47nS+nz/ozhEBnvU96bKHy6LjRsY4E28=
