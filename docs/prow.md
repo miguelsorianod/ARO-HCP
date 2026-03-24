@@ -355,27 +355,24 @@ an ARM throttle budget.
 
 ### Infrastructure setup
 
-The pool can be provisioned separately from the rest of the mock identities
-(and re-run whenever SPs need change):
+The pool can also be provisioned separately from the rest of the mock identities
+(and re-run whenever SPs need change). The number of identities is controlled
+by the `MSI_MOCK_POOL_SIZE` variable in `dev-infrastructure/Makefile` (default 20).
 
 ```bash
 cd dev-infrastructure/
 
-# Create 20 certificates in Key Vault, app registrations and role assignments
+# Create certificates in Key Vault, app registrations and role assignments
 make create-msi-mock-pool
 
 # Grant the pool SPs access to the E2E test subscription
 make grant-msi-mock-pool-e2e-access
 ```
 
-After creation, populate `config/config.yaml` with the real client IDs and principal IDs:
+After creation, run [`dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`](../dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh) to populate [`dev-infrastructure/openshift-ci/msi-mock-pool.yaml`](../dev-infrastructure/openshift-ci/msi-mock-pool.yaml) with the real client IDs and principal IDs:
 
 ```bash
-# Queries Azure AD and writes IDs into config/config.yaml
-make populate-msi-mock-pool-config
-
-# Regenerate rendered configs
-make -C ../config materialize
+make populate-msi-mock-pool
 ```
 
 ### Boskos configuration
@@ -407,9 +404,9 @@ The leased SP is then consumed during environment provisioning in
 overriding the default mock SP values:
 
 ```bash
-MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" "${SHARED_DIR}/config.yaml")
-MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" "${SHARED_DIR}/config.yaml")
-MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" "${SHARED_DIR}/config.yaml")
+MSI_MOCK_CLIENT_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".clientId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
+MSI_MOCK_PRINCIPAL_ID=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".principalId" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
+MSI_MOCK_CERT_NAME=$(yq ".miMockPool.\"${LEASED_MSI_MOCK_SP}\".certName" dev-infrastructure/openshift-ci/msi-mock-pool.yaml)
 ```
 
 ## EV2 Pipeline Integration

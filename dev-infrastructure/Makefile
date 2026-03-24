@@ -33,9 +33,8 @@ E2E_TESTING_SUBSCRIPTION_ID = 974ebd46-8ad3-41e3-afef-7ef25fd5c371
 # Environments where automation accounts are deployed
 AUTOMATION_ACCOUNT_ENVS = dev stage int e2e
 
-# MSI mock pool size and prefix for boskos leasing in the E2E testing subscription
+# MSI mock pool size for boskos leasing in the E2E testing subscription
 MSI_MOCK_POOL_SIZE ?= 20
-MSI_MOCK_BOSKOS_PREFIX ?= aro-hcp-msi-mock-cs-sp-dev
 
 list:
 	@grep '^[^#[:space:]].*:' Makefile
@@ -243,12 +242,12 @@ grant-msi-mock-pool-e2e-access:
 
 .PHONY: grant-msi-mock-pool-e2e-access
 
-populate-msi-mock-pool-config:
+populate-msi-mock-pool:
+	cd openshift-ci && \
 	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \
-	MSI_MOCK_BOSKOS_PREFIX=$(MSI_MOCK_BOSKOS_PREFIX) \
-	./scripts/populate-msi-mock-pool-config.sh
+	./populate-msi-mock-pool.sh
 
-.PHONY: populate-msi-mock-pool-config
+.PHONY: populate-msi-mock-pool
 
 grant-e2e-access:
 	az role assignment create \

@@ -4,13 +4,12 @@ set -o nounset
 set -o pipefail
 
 MSI_MOCK_POOL_SIZE="${MSI_MOCK_POOL_SIZE:-20}"
-MSI_MOCK_BOSKOS_PREFIX="${MSI_MOCK_BOSKOS_PREFIX:-aro-hcp-msi-mock-cs-sp-dev}"
+MSI_MOCK_BOSKOS_PREFIX="aro-hcp-msi-mock-cs-sp-dev"
 
-CONFIG_FILE="${CONFIG_FILE:-../config/config.yaml}"
+OUTPUT_FILE="${OUTPUT_FILE:-msi-mock-pool.yaml}"
 TMPFILE=$(mktemp)
 trap 'rm -f "$TMPFILE"' EXIT
 
-# Build the miMockPool YAML block into a temp file using yq
 yq -n '.miMockPool = {}' > "$TMPFILE"
 
 for i in $(seq 0 $((MSI_MOCK_POOL_SIZE - 1))); do
@@ -34,14 +33,6 @@ for i in $(seq 0 $((MSI_MOCK_POOL_SIZE - 1))); do
     " "$TMPFILE"
 done
 
-# Detect indentation from the BEGIN marker line in config.yaml
-INDENT=$(grep '# BEGIN miMockPool' "$CONFIG_FILE" | sed 's/\([ ]*\).*/\1/')
-INDENTED=$(sed "s/^/${INDENT}/" "$TMPFILE")
+cp "$TMPFILE" "$OUTPUT_FILE"
 
-# Replace everything between the markers in config.yaml
-sed -i "/# BEGIN miMockPool/,/# END miMockPool/{
-    /# BEGIN miMockPool/!{/# END miMockPool/!d;}
-}" "$CONFIG_FILE"
-sed -i "/# BEGIN miMockPool/r /dev/stdin" "$CONFIG_FILE" <<< "$INDENTED"
-
-echo "Done. Run 'make -C config materialize' to regenerate rendered configs."
+echo "Done. Updated ${OUTPUT_FILE}"
