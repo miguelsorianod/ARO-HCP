@@ -7,7 +7,7 @@ database('ServiceLogs').table('backendLogs')
 | where timestamp between ({{.TimestampMin }} .. {{.TimestampMax }})
 | where cluster == '{{.ClusterName}}'
 | where container_name == 'aro-hcp-backend'
-| where resource_id has '{{.ResourceGroupName}}'
+| where resource_group == '{{.ResourceGroupName}}'
 | where log.msg has 'dumping resourceID' and log.msg has 'hcpOpenShiftControllers'
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(log.currentResourceID))
 | mv-expand condition = log.content.properties.status.conditions
