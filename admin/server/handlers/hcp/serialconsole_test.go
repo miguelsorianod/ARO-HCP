@@ -24,15 +24,14 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/testr"
-	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -51,7 +50,8 @@ func TestSerialConsoleHandler(t *testing.T) {
 		name               string
 		resourceID         string
 		vmName             string
-		setupMocks         func(*gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever)
+		setupData          func(context.Context, *testing.T, *databasetesting.MockDBClient, *azcorearm.ResourceID)
+		mockFPA            *mockFPACredentialRetriever
 		expectedStatusCode int
 		expectedError      string
 	}{
@@ -59,9 +59,9 @@ func TestSerialConsoleHandler(t *testing.T) {
 			name:       "missing vmName parameter",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				return database.NewMockDBClient(ctrl), ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
+			setupData: func(ctx context.Context, t *testing.T, mockDB *databasetesting.MockDBClient, resourceID *azcorearm.ResourceID) {
 			},
+			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusBadRequest,
 			expectedError:      "vmName query parameter is required",
 		},
@@ -69,161 +69,82 @@ func TestSerialConsoleHandler(t *testing.T) {
 			name:       "invalid vmName format",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "-invalid-vm-name",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				return database.NewMockDBClient(ctrl), ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
+			setupData: func(ctx context.Context, t *testing.T, mockDB *databasetesting.MockDBClient, resourceID *azcorearm.ResourceID) {
 			},
+			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusBadRequest,
 			expectedError:      "vmName contains invalid characters or format",
 		},
 		{
-			name:       "HCP cluster not found in database (generic error)",
+			name:       "HCP cluster not found in database",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "test-vm",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				mockDB := database.NewMockDBClient(ctrl)
-				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
-
-				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
-				mockDB.EXPECT().
-					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
-					Return(mockCRUD)
-				mockCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.Name).
-					Return(nil, fmt.Errorf("failed to get HCP from database: cluster not found"))
-
-				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
+			setupData: func(ctx context.Context, t *testing.T, mockDB *databasetesting.MockDBClient, resourceID *azcorearm.ResourceID) {
 			},
+			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedError:      "failed to get HCP from database",
-		},
-		{
-			name:       "HCP cluster not found in database (404 ResponseError)",
-			resourceID: api.TestClusterResourceID,
-			vmName:     "test-vm",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				mockDB := database.NewMockDBClient(ctrl)
-				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
-
-				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
-				mockDB.EXPECT().
-					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
-					Return(mockCRUD)
-				mockCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.Name).
-					Return(nil, &azcore.ResponseError{StatusCode: http.StatusNotFound})
-
-				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
-			},
-			expectedStatusCode: http.StatusInternalServerError,
-			expectedError:      "failed to get HCP from database", // Wrapped error, ReportError converts to 404 ResourceNotFoundError
 		},
 		{
 			name:       "subscription not found",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "test-vm",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				mockDB := database.NewMockDBClient(ctrl)
-				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
-				mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
-
-				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
-
-				hcp := &api.HCPOpenShiftCluster{}
-
-				mockDB.EXPECT().
-					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
-					Return(mockCRUD)
-				mockCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.Name).
-					Return(hcp, nil)
-
-				// Mock subscription not found
-				mockDB.EXPECT().
-					Subscriptions().
-					Return(mockSubscriptionCRUD)
-				mockSubscriptionCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.SubscriptionID).
-					Return(nil, &azcore.ResponseError{StatusCode: http.StatusNotFound})
-
-				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
+			setupData: func(ctx context.Context, t *testing.T, mockDB *databasetesting.MockDBClient, resourceID *azcorearm.ResourceID) {
+				// Create HCP cluster with InternalID
+				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
+				require.NoError(t, err)
+				hcp := &api.HCPOpenShiftCluster{
+					TrackedResource: arm.TrackedResource{
+						Resource: arm.Resource{ID: resourceID},
+					},
+					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+						ClusterServiceID: internalID,
+					},
+				}
+				_, err = mockDB.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
+				require.NoError(t, err)
 			},
+			mockFPA:            &mockFPACredentialRetriever{},
 			expectedStatusCode: http.StatusNotFound,
 			expectedError:      "not found",
-		},
-		{
-			name:       "subscription retrieval fails (generic error)",
-			resourceID: api.TestClusterResourceID,
-			vmName:     "test-vm",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				mockDB := database.NewMockDBClient(ctrl)
-				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
-				mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
-
-				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
-
-				hcp := &api.HCPOpenShiftCluster{}
-
-				mockDB.EXPECT().
-					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
-					Return(mockCRUD)
-				mockCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.Name).
-					Return(hcp, nil)
-
-				// Mock subscription retrieval error
-				mockDB.EXPECT().
-					Subscriptions().
-					Return(mockSubscriptionCRUD)
-				mockSubscriptionCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.SubscriptionID).
-					Return(nil, fmt.Errorf("database error"))
-
-				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), &mockFPACredentialRetriever{}
-			},
-			expectedStatusCode: http.StatusInternalServerError,
-			expectedError:      "database error",
 		},
 		{
 			name:       "FPA credential retrieval fails",
 			resourceID: api.TestClusterResourceID,
 			vmName:     "test-vm",
-			setupMocks: func(ctrl *gomock.Controller) (database.DBClient, ocm.ClusterServiceClientSpec, *mockFPACredentialRetriever) {
-				mockDB := database.NewMockDBClient(ctrl)
-				mockCRUD := database.NewMockHCPClusterCRUD(ctrl)
-				mockSubscriptionCRUD := database.NewMockSubscriptionCRUD(ctrl)
+			setupData: func(ctx context.Context, t *testing.T, mockDB *databasetesting.MockDBClient, resourceID *azcorearm.ResourceID) {
+				// Create HCP cluster with InternalID
+				internalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster-id")
+				require.NoError(t, err)
+				hcp := &api.HCPOpenShiftCluster{
+					TrackedResource: arm.TrackedResource{
+						Resource: arm.Resource{ID: resourceID},
+					},
+					ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+						ClusterServiceID: internalID,
+					},
+				}
+				_, err = mockDB.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Create(ctx, hcp, nil)
+				require.NoError(t, err)
 
-				resourceID, _ := azcorearm.ParseResourceID(api.TestClusterResourceID)
-
-				hcp := &api.HCPOpenShiftCluster{}
-
-				mockDB.EXPECT().
-					HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).
-					Return(mockCRUD)
-				mockCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.Name).
-					Return(hcp, nil)
-
-				// Mock subscription with tenant ID
+				// Create subscription with tenant ID
 				tenantID := "test-tenant-id"
+				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + resourceID.SubscriptionID))
 				subscription := &arm.Subscription{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID: subscriptionResourceID,
+					},
+					ResourceID: subscriptionResourceID,
+					State:      arm.SubscriptionStateRegistered,
 					Properties: &arm.SubscriptionProperties{
 						TenantId: &tenantID,
 					},
 				}
-
-				mockDB.EXPECT().
-					Subscriptions().
-					Return(mockSubscriptionCRUD)
-				mockSubscriptionCRUD.EXPECT().
-					Get(gomock.Any(), resourceID.SubscriptionID).
-					Return(subscription, nil)
-
-				// Mock FPA failure
-				mockFPA := &mockFPACredentialRetriever{
-					err: fmt.Errorf("failed to get FPA credentials"),
-				}
-
-				return mockDB, ocm.NewMockClusterServiceClientSpec(ctrl), mockFPA
+				_, err = mockDB.Subscriptions().Create(ctx, subscription, nil)
+				require.NoError(t, err)
+			},
+			mockFPA: &mockFPACredentialRetriever{
+				err: fmt.Errorf("failed to get FPA credentials"),
 			},
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedError:      "failed to retrieve Azure credentials",
@@ -233,20 +154,20 @@ func TestSerialConsoleHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
 
-			// Setup mocks
-			mockDB, mockCS, mockFPA := tt.setupMocks(ctrl)
-
-			// Create handler
-			handler := NewHCPSerialConsoleHandler(mockDB, mockCS, mockFPA)
+			// Setup database and test data
+			mockDB := databasetesting.NewMockDBClient()
 
 			// Parse resource ID and add to context
 			resourceID, err := azcorearm.ParseResourceID(tt.resourceID)
-			if err != nil {
-				t.Fatalf("Failed to parse resource ID: %v", err)
-			}
+			require.NoError(t, err)
+
+			// Setup test data
+			tt.setupData(ctx, t, mockDB, resourceID)
+
+			// Create handler
+			handler := NewHCPSerialConsoleHandler(mockDB, tt.mockFPA)
+
 			ctx = utils.ContextWithResourceID(ctx, resourceID)
 
 			// Create request
@@ -297,14 +218,11 @@ func TestSerialConsoleHandler(t *testing.T) {
 
 func TestSerialConsoleHandler_InvalidResourceID(t *testing.T) {
 	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
-	mockDB := database.NewMockDBClient(ctrl)
-	mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
+	mockDB := databasetesting.NewMockDBClient()
 	mockFPA := &mockFPACredentialRetriever{}
 
-	handler := NewHCPSerialConsoleHandler(mockDB, mockCS, mockFPA)
+	handler := NewHCPSerialConsoleHandler(mockDB, mockFPA)
 
 	// Create request WITHOUT adding resource ID to context
 	req := httptest.NewRequest(http.MethodGet, "/serialconsole?vmName=test-vm", nil)

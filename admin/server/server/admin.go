@@ -111,7 +111,7 @@ func NewAdminAPI(
 	)
 	middlewareMux.Handle(
 		middleware.V1HCPResourcePattern("GET", "/serialconsole"),
-		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(dbClient, clustersServiceClient, fpaCredentialRetriever).ServeHTTP)),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(dbClient, fpaCredentialRetriever).ServeHTTP)),
 	)
 
 	// Non-HCP admin routes

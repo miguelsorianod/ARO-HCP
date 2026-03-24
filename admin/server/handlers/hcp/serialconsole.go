@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/fpa"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -40,19 +39,16 @@ const (
 // and console output from VMs in the HCP cluster's managed resource group.
 type HCPSerialConsoleHandler struct {
 	dbClient               database.DBClient
-	csClient               ocm.ClusterServiceClientSpec
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 }
 
 // NewHCPSerialConsoleHandler creates a new serial console handler with the required dependencies
 func NewHCPSerialConsoleHandler(
 	dbClient database.DBClient,
-	csClient ocm.ClusterServiceClientSpec,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
 ) *HCPSerialConsoleHandler {
 	return &HCPSerialConsoleHandler{
 		dbClient:               dbClient,
-		csClient:               csClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,
 	}
 }
