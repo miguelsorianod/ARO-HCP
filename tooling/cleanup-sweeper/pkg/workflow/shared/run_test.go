@@ -20,14 +20,12 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
-
-	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
 func TestRun_ReturnsStepDiscoveryError(t *testing.T) {
 	t.Parallel()
 
-	ctx := cleanuprunner.ContextWithLogger(context.Background(), logr.Discard())
+	ctx := logr.NewContext(context.Background(), logr.Discard())
 	err := Run(ctx, RunOptions{
 		SubscriptionID:  "00000000-0000-0000-0000-000000000000",
 		AzureCredential: nil,

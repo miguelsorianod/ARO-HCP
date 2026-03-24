@@ -25,14 +25,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
-	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
 )
 
 const DeletedVaultsResourceType = "Microsoft.KeyVault/deletedVaults"
-
-type PurgeDeletedStep struct {
-	runner.DeletionStep
-}
 
 type PurgeDeletedStepConfig struct {
 	ResourceGroupName string
@@ -44,84 +39,115 @@ type PurgeDeletedStepConfig struct {
 	Verify          runner.VerifyFn
 }
 
-var _ runner.StepOptionsProvider = PurgeDeletedStepConfig{}
-
-func (c PurgeDeletedStepConfig) StepOptions() runner.StepOptions {
-	return runner.StepOptions{
-		Name:            c.Name,
-		Retries:         c.Retries,
-		ContinueOnError: c.ContinueOnError,
-		Verify:          c.Verify,
-	}
+type purgeDeletedStep struct {
+	cfg             PurgeDeletedStepConfig
+	name            string
+	retries         int
+	continueOnError bool
+	verify          runner.VerifyFn
+	targetLocations map[string]string
 }
 
-func NewPurgeDeletedStep(cfg PurgeDeletedStepConfig) *PurgeDeletedStep {
-	stepOptions := cfg.StepOptions()
-	if stepOptions.Name == "" {
-		stepOptions.Name = "Purge soft-deleted Key Vaults"
+var _ runner.Step = (*purgeDeletedStep)(nil)
+
+func NewPurgeDeletedStep(cfg PurgeDeletedStepConfig) (runner.Step, error) {
+	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
+		return nil, fmt.Errorf("resource group name is required")
+	}
+	if cfg.VaultsClient == nil {
+		return nil, fmt.Errorf("vaults client is required")
 	}
 
-	targetLocations := map[string]string{}
-
-	step := &PurgeDeletedStep{
-		DeletionStep: runner.DeletionStep{
-			ResourceType: DeletedVaultsResourceType,
-			Options:      stepOptions,
-		},
+	stepName := cfg.Name
+	if strings.TrimSpace(stepName) == "" {
+		stepName = "Purge soft-deleted Key Vaults"
 	}
 
-	step.DiscoverFn = func(ctx context.Context, _ string) ([]runner.Target, error) {
-		pager := cfg.VaultsClient.NewListDeletedPager(nil)
-		targets := []runner.Target{}
-		for pager.More() {
-			page, err := pager.NextPage(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to list deleted vaults: %w", err)
-			}
-			for _, vault := range page.Value {
-				if vault == nil || vault.Name == nil || vault.Properties == nil || vault.Properties.Location == nil || vault.Properties.VaultID == nil {
-					continue
-				}
-				vaultID := *vault.Properties.VaultID
-				if !strings.Contains(vaultID, fmt.Sprintf("/resourceGroups/%s/", cfg.ResourceGroupName)) {
-					continue
-				}
-				targets = append(targets, runner.Target{
-					ID:   vaultID,
-					Name: *vault.Name,
-					Type: DeletedVaultsResourceType,
-				})
-				targetLocations[*vault.Name] = *vault.Properties.Location
-			}
-		}
-		return targets, nil
-	}
+	return &purgeDeletedStep{
+		cfg:             cfg,
+		name:            stepName,
+		retries:         cfg.Retries,
+		continueOnError: cfg.ContinueOnError,
+		verify:          cfg.Verify,
+		targetLocations: map[string]string{},
+	}, nil
+}
 
-	step.DeleteFn = func(ctx context.Context, target runner.Target, wait bool) error {
-		location, ok := targetLocations[target.Name]
-		if !ok {
-			return fmt.Errorf("missing purge metadata for vault %s", target.Name)
-		}
-		poller, err := cfg.VaultsClient.BeginPurgeDeleted(ctx, target.Name, location, nil)
-		if err != nil {
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-				return nil
-			}
-			return err
-		}
-		if wait {
-			return armhelpers.PollUntilDone(ctx, poller)
-		}
+func MustNewPurgeDeletedStep(cfg PurgeDeletedStepConfig) runner.Step {
+	step, err := NewPurgeDeletedStep(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return step
+}
+
+func (s *purgeDeletedStep) Name() string {
+	return s.name
+}
+
+func (s *purgeDeletedStep) RetryLimit() int {
+	if s.retries < runner.DefaultRetries {
+		return runner.DefaultRetries
+	}
+	return s.retries
+}
+
+func (s *purgeDeletedStep) ContinueOnError() bool {
+	return s.continueOnError
+}
+
+func (s *purgeDeletedStep) Verify(ctx context.Context) error {
+	if s.verify == nil {
 		return nil
 	}
+	return s.verify(ctx)
+}
 
-	step.VerifyFn = func(ctx context.Context) error {
-		if stepOptions.Verify == nil {
+func (s *purgeDeletedStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	s.targetLocations = map[string]string{}
+
+	pager := s.cfg.VaultsClient.NewListDeletedPager(nil)
+	targets := []runner.Target{}
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list deleted vaults: %w", err)
+		}
+		for _, vault := range page.Value {
+			if vault == nil || vault.Name == nil || vault.Properties == nil || vault.Properties.Location == nil || vault.Properties.VaultID == nil {
+				continue
+			}
+			vaultID := *vault.Properties.VaultID
+			if !strings.Contains(vaultID, fmt.Sprintf("/resourceGroups/%s/", s.cfg.ResourceGroupName)) {
+				continue
+			}
+			targets = append(targets, runner.Target{
+				ID:   vaultID,
+				Name: *vault.Name,
+				Type: DeletedVaultsResourceType,
+			})
+			s.targetLocations[*vault.Name] = *vault.Properties.Location
+		}
+	}
+	return targets, nil
+}
+
+func (s *purgeDeletedStep) Delete(ctx context.Context, target runner.Target, wait bool) error {
+	location, ok := s.targetLocations[target.Name]
+	if !ok {
+		return fmt.Errorf("missing purge metadata for vault %s", target.Name)
+	}
+	poller, err := s.cfg.VaultsClient.BeginPurgeDeleted(ctx, target.Name, location, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 			return nil
 		}
-		return stepOptions.Verify(ctx)
+		return err
 	}
-
-	return step
+	if wait {
+		_, err = poller.PollUntilDone(ctx, nil)
+		return err
+	}
+	return nil
 }

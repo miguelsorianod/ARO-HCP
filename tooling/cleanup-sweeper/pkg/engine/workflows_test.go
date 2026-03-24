@@ -18,8 +18,12 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
@@ -38,7 +42,7 @@ func TestWorkflowBuilders(t *testing.T) {
 				return RoleAssignmentsSweeperWorkflow(
 					context.Background(),
 					"00000000-0000-0000-0000-000000000000",
-					nil,
+					workflowsTestCredential{},
 					WorkflowOptions{
 						DryRun:      true,
 						Wait:        true,
@@ -66,14 +70,14 @@ func TestWorkflowBuilders(t *testing.T) {
 		{
 			name: "resource group ordered workflow propagates canceled context",
 			execute: func(_ *testing.T) (interface{}, error) {
-				baseCtx := runner.ContextWithLogger(context.Background(), logr.Discard())
+				baseCtx := logr.NewContext(context.Background(), logr.Discard())
 				ctx, cancel := context.WithCancel(baseCtx)
 				cancel()
 				return ResourceGroupOrderedCleanupWorkflow(
 					ctx,
 					"rg-example",
 					"00000000-0000-0000-0000-000000000000",
-					nil,
+					workflowsTestCredential{},
 					WorkflowOptions{},
 				)
 			},
@@ -97,4 +101,10 @@ func TestWorkflowBuilders(t *testing.T) {
 			tc.assertions(t, workflow, err)
 		})
 	}
+}
+
+type workflowsTestCredential struct{}
+
+func (workflowsTestCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }

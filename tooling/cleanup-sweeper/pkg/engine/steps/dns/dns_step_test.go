@@ -14,7 +14,77 @@
 
 package dns
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
+)
+
+func TestNewDeleteNSDelegationRecordsStep_ExecutionOptions(t *testing.T) {
+	t.Parallel()
+
+	defaultCfg := validDeleteNSDelegationRecordsStepConfig()
+	defaultStep, err := NewDeleteNSDelegationRecordsStep(defaultCfg)
+	if err != nil {
+		t.Fatalf("expected constructor to succeed, got error: %v", err)
+	}
+	if got := defaultStep.Name(); got != "Delete parent NS delegations" {
+		t.Fatalf("expected default step name %q, got %q", "Delete parent NS delegations", got)
+	}
+	if got := defaultStep.RetryLimit(); got != 1 {
+		t.Fatalf("expected default retry limit 1, got %d", got)
+	}
+	if got := defaultStep.ContinueOnError(); got {
+		t.Fatalf("expected continueOnError false, got %t", got)
+	}
+
+	customCfg := validDeleteNSDelegationRecordsStepConfig()
+	customCfg.Name = "custom-name"
+	customCfg.Retries = 4
+	customCfg.ContinueOnError = true
+	customStep, err := NewDeleteNSDelegationRecordsStep(customCfg)
+	if err != nil {
+		t.Fatalf("expected constructor to succeed, got error: %v", err)
+	}
+	if got := customStep.Name(); got != "custom-name" {
+		t.Fatalf("expected step name %q, got %q", "custom-name", got)
+	}
+	if got := customStep.RetryLimit(); got != 4 {
+		t.Fatalf("expected retry limit 4, got %d", got)
+	}
+	if got := customStep.ContinueOnError(); !got {
+		t.Fatalf("expected continueOnError true, got %t", got)
+	}
+}
+
+func TestNewDeleteNSDelegationRecordsStep_ReturnsErrorWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := validDeleteNSDelegationRecordsStepConfig()
+	cfg.Credential = nil
+	if _, err := NewDeleteNSDelegationRecordsStep(cfg); err == nil {
+		t.Fatalf("expected validation error when credential is missing")
+	}
+}
+
+func TestMustNewDeleteNSDelegationRecordsStep_PanicsWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := validDeleteNSDelegationRecordsStepConfig()
+	cfg.SubsClient = nil
+
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic for invalid config")
+		}
+	}()
+	_ = MustNewDeleteNSDelegationRecordsStep(cfg)
+}
 
 func TestParseNSRecordSetTargetID(t *testing.T) {
 	t.Parallel()
@@ -71,4 +141,19 @@ func TestParseNSRecordSetTargetID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func validDeleteNSDelegationRecordsStepConfig() DeleteNSDelegationRecordsStepConfig {
+	return DeleteNSDelegationRecordsStepConfig{
+		ResourceGroupName: "rg",
+		Credential:        testCredential{},
+		ResourcesClient:   &armresources.Client{},
+		SubsClient:        &armsubscriptions.Client{},
+	}
+}
+
+type testCredential struct{}
+
+func (testCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
 }

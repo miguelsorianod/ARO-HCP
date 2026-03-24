@@ -18,8 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
@@ -189,11 +190,11 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 	}
 }
 
-func TestParseCreatedAt_PythonCompatibleFormat(t *testing.T) {
+func TestParseCreatedAt_AzureFormat(t *testing.T) {
 	t.Parallel()
 
 	tags := map[string]*string{
-		"createdAt": strPtr("2026-03-16T15:00:00.123456789123Z"),
+		"createdAt": strPtr("2026-03-16T15:00:00.1234567Z"),
 	}
 
 	parsed, ok := parseCreatedAt(tags)
@@ -201,7 +202,7 @@ func TestParseCreatedAt_PythonCompatibleFormat(t *testing.T) {
 		t.Fatalf("expected createdAt to parse")
 	}
 
-	expected := time.Date(2026, time.March, 16, 15, 0, 0, 123456789, time.UTC)
+	expected := time.Date(2026, time.March, 16, 15, 0, 0, 123456700, time.UTC)
 	if !parsed.Equal(expected) {
 		t.Fatalf("expected parsed time %s, got %s", expected, parsed)
 	}

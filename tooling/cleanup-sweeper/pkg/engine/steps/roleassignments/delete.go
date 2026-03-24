@@ -21,13 +21,16 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/go-logr/logr"
 	kiotaauth "github.com/microsoft/kiota-authentication-azure-go"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphdirectoryobjects "github.com/microsoftgraph/msgraph-sdk-go/directoryobjects"
 	graphgroups "github.com/microsoftgraph/msgraph-sdk-go/groups"
+
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
@@ -41,10 +44,6 @@ const (
 	preflightFailureMessage   = "Refusing to run cleanup: directory visibility is insufficient. This tool must be run with directory read permissions (e.g. Directory.Read.All)."
 )
 
-type DeleteOrphanedStep struct {
-	runner.DeletionStep
-}
-
 type DeleteOrphanedStepConfig struct {
 	RoleAssignmentsClient *armauthorization.RoleAssignmentsClient
 	AzureCredential       azcore.TokenCredential
@@ -56,57 +55,90 @@ type DeleteOrphanedStepConfig struct {
 	Verify          runner.VerifyFn
 }
 
-var _ runner.StepOptionsProvider = DeleteOrphanedStepConfig{}
-
-func (c DeleteOrphanedStepConfig) StepOptions() runner.StepOptions {
-	return runner.StepOptions{
-		Name:            c.Name,
-		Retries:         c.Retries,
-		ContinueOnError: c.ContinueOnError,
-		Verify:          c.Verify,
-	}
+type deleteOrphanedStep struct {
+	cfg             DeleteOrphanedStepConfig
+	name            string
+	retries         int
+	continueOnError bool
+	verify          runner.VerifyFn
 }
 
-func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) *DeleteOrphanedStep {
-	stepOptions := cfg.StepOptions()
-	if stepOptions.Name == "" {
-		stepOptions.Name = "Delete orphaned role assignments"
+var _ runner.Step = (*deleteOrphanedStep)(nil)
+
+func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) (runner.Step, error) {
+	if cfg.RoleAssignmentsClient == nil {
+		return nil, fmt.Errorf("role assignments client is required")
+	}
+	if cfg.AzureCredential == nil {
+		return nil, fmt.Errorf("azure credential is required")
+	}
+	if strings.TrimSpace(cfg.SubscriptionID) == "" {
+		return nil, fmt.Errorf("subscription ID is required")
 	}
 
-	step := &DeleteOrphanedStep{
-		DeletionStep: runner.DeletionStep{
-			ResourceType: ResourceType,
-			Options:      stepOptions,
-		},
+	stepName := cfg.Name
+	if strings.TrimSpace(stepName) == "" {
+		stepName = "Delete orphaned role assignments"
 	}
 
-	step.DiscoverFn = func(ctx context.Context, _ string) ([]runner.Target, error) {
-		return discoverOrphanedRoleAssignments(
-			ctx,
-			cfg.RoleAssignmentsClient,
-			cfg.AzureCredential,
-			cfg.SubscriptionID,
-		)
+	return &deleteOrphanedStep{
+		cfg:             cfg,
+		name:            stepName,
+		retries:         cfg.Retries,
+		continueOnError: cfg.ContinueOnError,
+		verify:          cfg.Verify,
+	}, nil
+}
+
+func MustNewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) runner.Step {
+	step, err := NewDeleteOrphanedStep(cfg)
+	if err != nil {
+		panic(err)
 	}
-	step.DeleteFn = func(ctx context.Context, target runner.Target, _ bool) error {
-		_, err := cfg.RoleAssignmentsClient.DeleteByID(ctx, target.ID, nil)
-		if err != nil {
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-				return nil
-			}
-			return fmt.Errorf("failed to delete role assignment %q: %w", target.ID, err)
-		}
+	return step
+}
+
+func (s *deleteOrphanedStep) Name() string {
+	return s.name
+}
+
+func (s *deleteOrphanedStep) RetryLimit() int {
+	if s.retries < runner.DefaultRetries {
+		return runner.DefaultRetries
+	}
+	return s.retries
+}
+
+func (s *deleteOrphanedStep) ContinueOnError() bool {
+	return s.continueOnError
+}
+
+func (s *deleteOrphanedStep) Verify(ctx context.Context) error {
+	if s.verify == nil {
 		return nil
 	}
-	step.VerifyFn = func(ctx context.Context) error {
-		if stepOptions.Verify == nil {
+	return s.verify(ctx)
+}
+
+func (s *deleteOrphanedStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	return discoverOrphanedRoleAssignments(
+		ctx,
+		s.cfg.RoleAssignmentsClient,
+		s.cfg.AzureCredential,
+		s.cfg.SubscriptionID,
+	)
+}
+
+func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _ bool) error {
+	_, err := s.cfg.RoleAssignmentsClient.DeleteByID(ctx, target.ID, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 			return nil
 		}
-		return stepOptions.Verify(ctx)
+		return fmt.Errorf("failed to delete role assignment %q: %w", target.ID, err)
 	}
-
-	return step
+	return nil
 }
 
 // SAFETY CONTRACT:
@@ -119,7 +151,10 @@ func discoverOrphanedRoleAssignments(
 	azureCredential azcore.TokenCredential,
 	subscriptionID string,
 ) ([]runner.Target, error) {
-	logger := runner.LoggerFromContext(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	if roleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")

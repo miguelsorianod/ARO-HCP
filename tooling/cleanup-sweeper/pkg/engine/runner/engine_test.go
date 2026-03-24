@@ -70,12 +70,12 @@ func TestEngineRun(t *testing.T) {
 	t.Parallel()
 
 	type testCase struct {
-		name              string
-		step              *fakeStep
-		parallelism       int
-		dryRun            bool
-		enablePostRunFn   bool
-		assertions        func(t *testing.T, err error, step *fakeStep, postRunCalled bool)
+		name            string
+		step            *fakeStep
+		parallelism     int
+		dryRun          bool
+		enablePostRunFn bool
+		assertions      func(t *testing.T, err error, step *fakeStep, postRunCalled bool)
 	}
 
 	testCases := []testCase{
@@ -182,12 +182,28 @@ func TestEngineRun(t *testing.T) {
 			},
 		},
 		{
-			name: "verify error fails even when continuable",
+			name: "verify error is best-effort when configured",
 			step: &fakeStep{
 				name:            "verify-fail-step",
 				targets:         []Target{{ID: "x"}},
 				verifyErr:       errors.New("verify boom"),
 				continueOnError: true,
+			},
+			parallelism: 1,
+			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+			},
+		},
+		{
+			name: "verify error fails when not continuable",
+			step: &fakeStep{
+				name:            "verify-fail-step",
+				targets:         []Target{{ID: "x"}},
+				verifyErr:       errors.New("verify boom"),
+				continueOnError: false,
 			},
 			parallelism: 1,
 			assertions: func(t *testing.T, err error, _ *fakeStep, _ bool) {
@@ -257,46 +273,9 @@ func TestEngineRun(t *testing.T) {
 				}
 			}
 
-			ctx := ContextWithLogger(context.Background(), logr.Discard())
+			ctx := logr.NewContext(context.Background(), logr.Discard())
 			err := engine.Run(ctx)
 			tc.assertions(t, err, tc.step, postRunCalled)
 		})
 	}
 }
-
-func TestDeletionStepDiscover_AppliesSkipFilter(t *testing.T) {
-	t.Parallel()
-
-	step := DeletionStep{
-		ResourceType: "example/type",
-		Options:      StepOptions{Name: "filter-step"},
-		DiscoverFn: func(_ context.Context, _ string) ([]Target, error) {
-			return []Target{
-				{ID: "a", Name: "skip-me"},
-				{ID: "b", Name: "keep-me"},
-			}, nil
-		},
-		SkipFn: func(_ context.Context, target Target) (bool, string, error) {
-			return target.Name == "skip-me", "unit-test", nil
-		},
-	}
-
-	ctx := ContextWithLogger(context.Background(), logr.Discard())
-	targets, err := step.Discover(ctx)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(targets) != 1 || targets[0].Name != "keep-me" {
-		t.Fatalf("unexpected targets: %#v", targets)
-	}
-}
-
-func TestDeletionStepRetryLimit_MinimumOne(t *testing.T) {
-	t.Parallel()
-
-	step := DeletionStep{Options: StepOptions{Retries: 0}}
-	if got := step.RetryLimit(); got != 1 {
-		t.Fatalf("expected retry limit 1, got %d", got)
-	}
-}
-

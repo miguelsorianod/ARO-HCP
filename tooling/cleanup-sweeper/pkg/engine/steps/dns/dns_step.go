@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
@@ -32,10 +34,6 @@ import (
 
 const DNSZonesResourceType = "Microsoft.Network/dnszones"
 const NSRecordSetResourceType = "Microsoft.Network/dnszones/NS"
-
-type DeleteNSDelegationRecordsStep struct {
-	runner.DeletionStep
-}
 
 type DeleteNSDelegationRecordsStepConfig struct {
 	ResourceGroupName string
@@ -49,77 +47,114 @@ type DeleteNSDelegationRecordsStepConfig struct {
 	Verify          runner.VerifyFn
 }
 
-var _ runner.StepOptionsProvider = DeleteNSDelegationRecordsStepConfig{}
-
-func (c DeleteNSDelegationRecordsStepConfig) StepOptions() runner.StepOptions {
-	return runner.StepOptions{
-		Name:            c.Name,
-		Retries:         c.Retries,
-		ContinueOnError: c.ContinueOnError,
-		Verify:          c.Verify,
-	}
+type deleteNSDelegationRecordsStep struct {
+	cfg             DeleteNSDelegationRecordsStepConfig
+	name            string
+	retries         int
+	continueOnError bool
+	verify          runner.VerifyFn
 }
 
-func NewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) *DeleteNSDelegationRecordsStep {
-	stepOptions := cfg.StepOptions()
-	if stepOptions.Name == "" {
-		stepOptions.Name = "Delete parent NS delegations"
+var _ runner.Step = (*deleteNSDelegationRecordsStep)(nil)
+
+func NewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) (runner.Step, error) {
+	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
+		return nil, fmt.Errorf("resource group name is required")
+	}
+	if cfg.Credential == nil {
+		return nil, fmt.Errorf("azure credential is required")
+	}
+	if cfg.ResourcesClient == nil {
+		return nil, fmt.Errorf("resources client is required")
+	}
+	if cfg.SubsClient == nil {
+		return nil, fmt.Errorf("subscriptions client is required")
 	}
 
-	step := &DeleteNSDelegationRecordsStep{
-		DeletionStep: runner.DeletionStep{
-			ResourceType: NSRecordSetResourceType,
-			Options:      stepOptions,
-		},
+	stepName := cfg.Name
+	if strings.TrimSpace(stepName) == "" {
+		stepName = "Delete parent NS delegations"
 	}
 
-	step.DiscoverFn = func(ctx context.Context, _ string) ([]runner.Target, error) {
-		logger := runner.LoggerFromContext(ctx)
-		childZones, err := armhelpers.ListByType(ctx, cfg.ResourcesClient, cfg.ResourceGroupName, DNSZonesResourceType)
-		if err != nil {
-			return nil, err
-		}
-		targets := make([]runner.Target, 0, len(childZones))
-		for _, resource := range childZones {
-			if resource == nil || resource.Name == nil {
-				continue
-			}
-			childZone := *resource.Name
-			parentZone, recordSetName, ok := parseDelegation(childZone)
-			if !ok {
-				continue
-			}
+	return &deleteNSDelegationRecordsStep{
+		cfg:             cfg,
+		name:            stepName,
+		retries:         cfg.Retries,
+		continueOnError: cfg.ContinueOnError,
+		verify:          cfg.Verify,
+	}, nil
+}
 
-			delegationTargets, err := discoverNSDelegationRecordTargets(ctx, cfg.Credential, cfg.SubsClient, parentZone, recordSetName)
-			if err != nil {
-				logger.Info(
-					fmt.Sprintf("[WARNING] Failed NS delegation discovery for child zone %q; continuing", childZone),
-					"parentZone", parentZone,
-					"recordSetName", recordSetName,
-					"error", err,
-				)
-			}
-			targets = append(targets, delegationTargets...)
-		}
-		return targets, nil
+func MustNewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) runner.Step {
+	step, err := NewDeleteNSDelegationRecordsStep(cfg)
+	if err != nil {
+		panic(err)
 	}
-
-	step.DeleteFn = func(ctx context.Context, target runner.Target, _ bool) error {
-		subscriptionID, resourceGroup, zoneName, recordSetName, err := parseNSRecordSetTargetID(target.ID)
-		if err != nil {
-			return err
-		}
-		return deleteNSRecordSet(ctx, cfg.Credential, subscriptionID, resourceGroup, zoneName, recordSetName)
-	}
-
-	step.VerifyFn = func(ctx context.Context) error {
-		if stepOptions.Verify == nil {
-			return nil
-		}
-		return stepOptions.Verify(ctx)
-	}
-
 	return step
+}
+
+func (s *deleteNSDelegationRecordsStep) Name() string {
+	return s.name
+}
+
+func (s *deleteNSDelegationRecordsStep) RetryLimit() int {
+	if s.retries < runner.DefaultRetries {
+		return runner.DefaultRetries
+	}
+	return s.retries
+}
+
+func (s *deleteNSDelegationRecordsStep) ContinueOnError() bool {
+	return s.continueOnError
+}
+
+func (s *deleteNSDelegationRecordsStep) Verify(ctx context.Context) error {
+	if s.verify == nil {
+		return nil
+	}
+	return s.verify(ctx)
+}
+
+func (s *deleteNSDelegationRecordsStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	childZones, err := armhelpers.ListByType(ctx, s.cfg.ResourcesClient, s.cfg.ResourceGroupName, DNSZonesResourceType)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]runner.Target, 0, len(childZones))
+	for _, resource := range childZones {
+		if resource == nil || resource.Name == nil {
+			continue
+		}
+		childZone := *resource.Name
+		parentZone, recordSetName, ok := parseDelegation(childZone)
+		if !ok {
+			continue
+		}
+
+		delegationTargets, err := discoverNSDelegationRecordTargets(ctx, s.cfg.Credential, s.cfg.SubsClient, parentZone, recordSetName)
+		if err != nil {
+			logger.Info(
+				fmt.Sprintf("[WARNING] Failed NS delegation discovery for child zone %q; continuing", childZone),
+				"parentZone", parentZone,
+				"recordSetName", recordSetName,
+				"error", err,
+			)
+		}
+		targets = append(targets, delegationTargets...)
+	}
+	return targets, nil
+}
+
+func (s *deleteNSDelegationRecordsStep) Delete(ctx context.Context, target runner.Target, _ bool) error {
+	subscriptionID, resourceGroup, zoneName, recordSetName, err := parseNSRecordSetTargetID(target.ID)
+	if err != nil {
+		return err
+	}
+	return deleteNSRecordSet(ctx, s.cfg.Credential, subscriptionID, resourceGroup, zoneName, recordSetName)
 }
 
 func discoverNSDelegationRecordTargets(ctx context.Context, credential azcore.TokenCredential, subsClient *armsubscriptions.Client, parentZone, recordSetName string) ([]runner.Target, error) {
@@ -170,7 +205,7 @@ func discoverNSDelegationRecordTargets(ctx context.Context, credential azcore.To
 						continue
 					}
 
-					parsedID, err := arm.ParseResourceID(*zone.ID)
+					parsedID, err := azcorearm.ParseResourceID(*zone.ID)
 					if err != nil {
 						wrappedErr := fmt.Errorf("failed parsing zone ID %q: %w", *zone.ID, err)
 						errs = append(errs, wrappedErr)
@@ -227,7 +262,7 @@ func buildNSRecordSetID(subscriptionID, resourceGroup, zoneName, recordSetName s
 }
 
 func parseNSRecordSetTargetID(id string) (subscriptionID, resourceGroup, zoneName, recordSetName string, err error) {
-	parsed, err := arm.ParseResourceID(id)
+	parsed, err := azcorearm.ParseResourceID(id)
 	if err != nil {
 		return "", "", "", "", err
 	}

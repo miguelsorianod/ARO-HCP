@@ -22,7 +22,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/wait"
+)
+
+const (
+	DefaultParallelism = 8
+	DefaultRetries     = 1
 )
 
 type Target struct {
@@ -37,8 +43,13 @@ type Step interface {
 	Delete(ctx context.Context, target Target, wait bool) error
 	Verify(ctx context.Context) error
 	RetryLimit() int
+	// ContinueOnError enables best-effort behavior for per-target deletions and
+	// post-delete verification within the step.
+	// Discovery failures remain fatal because no target set can be established.
 	ContinueOnError() bool
 }
+
+type VerifyFn func(ctx context.Context) error
 
 type Engine struct {
 	Steps       []Step
@@ -49,11 +60,12 @@ type Engine struct {
 }
 
 func (e *Engine) Run(ctx context.Context) error {
-	if e.Parallelism < 1 {
-		e.Parallelism = 4
+	parallelism := e.Parallelism
+	if parallelism < 1 {
+		parallelism = DefaultParallelism
 	}
 	for _, step := range e.Steps {
-		if err := e.runStep(ctx, step); err != nil {
+		if err := e.runStep(ctx, step, parallelism); err != nil {
 			return err
 		}
 	}
@@ -63,10 +75,15 @@ func (e *Engine) Run(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) runStep(ctx context.Context, step Step) error {
-	logger := LoggerFromContext(ctx)
+func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
 	targets, err := step.Discover(ctx)
 	if err != nil {
+		// Discovery is treated as a control-plane prerequisite. If it fails we
+		// cannot safely continue this step because targets are unknown.
 		return fmt.Errorf("%s: discovery failed: %w", step.Name(), err)
 	}
 	if len(targets) == 0 {
@@ -91,8 +108,8 @@ func (e *Engine) runStep(ctx context.Context, step Step) error {
 	errs := make(chan error, len(targets))
 
 	var wg sync.WaitGroup
-	wg.Add(e.Parallelism)
-	for i := 0; i < e.Parallelism; i++ {
+	wg.Add(parallelism)
+	for i := 0; i < parallelism; i++ {
 		go func() {
 			defer wg.Done()
 			for {
@@ -154,84 +171,26 @@ func (e *Engine) runStep(ctx context.Context, step Step) error {
 		return errors.Join(collectedErrs...)
 	}
 
-	if err := step.Verify(ctx); err != nil {
-		return fmt.Errorf("%s: verification failed: %w", step.Name(), err)
-	}
-	return nil
-}
-
-type DiscoverFn func(ctx context.Context, resourceType string) ([]Target, error)
-type DeleteFn func(ctx context.Context, target Target, wait bool) error
-type VerifyFn func(ctx context.Context) error
-type SkipFn func(ctx context.Context, target Target) (skip bool, reason string, err error)
-
-type DeletionStep struct {
-	ResourceType string
-	DiscoverFn   DiscoverFn
-	DeleteFn     DeleteFn
-	VerifyFn     VerifyFn
-	SkipFn       SkipFn
-	Options      StepOptions
-}
-
-func (ds DeletionStep) Name() string {
-	return ds.Options.Name
-}
-
-func (ds DeletionStep) RetryLimit() int {
-	if ds.Options.Retries < 1 {
-		return 1
-	}
-	return ds.Options.Retries
-}
-
-func (ds DeletionStep) ContinueOnError() bool {
-	return ds.Options.ContinueOnError
-}
-
-func (ds DeletionStep) Discover(ctx context.Context) ([]Target, error) {
-	logger := LoggerFromContext(ctx)
-	if ds.DiscoverFn == nil {
-		return nil, fmt.Errorf("DiscoverFn is required")
-	}
-	targets, err := ds.DiscoverFn(ctx, ds.ResourceType)
-	if err != nil {
-		return nil, err
-	}
-	filtered := make([]Target, 0, len(targets))
-	for _, target := range targets {
-		if ds.SkipFn != nil {
-			skip, reason, err := ds.SkipFn(ctx, target)
-			if err != nil {
-				return nil, err
-			}
-			if skip {
-				logger.Info("Skipping deletion target", "step", ds.Name(), "resource", target.Name, "reason", reason)
-				continue
-			}
-		}
-		filtered = append(filtered, target)
-	}
-	return filtered, nil
-}
-
-func (ds DeletionStep) Delete(ctx context.Context, target Target, wait bool) error {
-	if ds.DeleteFn == nil {
-		return fmt.Errorf("DeleteFn is required")
-	}
-	return ds.DeleteFn(ctx, target, wait)
-}
-
-func (ds DeletionStep) Verify(ctx context.Context) error {
-	if ds.VerifyFn == nil {
+	verifyErr := retry(ctx, step.RetryLimit(), func() error {
+		return step.Verify(ctx)
+	})
+	if verifyErr == nil {
 		return nil
 	}
-	return ds.VerifyFn(ctx)
+	if step.ContinueOnError() {
+		logger.Info(
+			"Verification failed in best-effort mode; continuing",
+			"step", step.Name(),
+			"error", verifyErr,
+		)
+		return nil
+	}
+	return fmt.Errorf("%s: verification failed: %w", step.Name(), verifyErr)
 }
 
 func retry(ctx context.Context, maxAttempts int, fn func() error) error {
-	if maxAttempts < 1 {
-		maxAttempts = 1
+	if maxAttempts < DefaultRetries {
+		maxAttempts = DefaultRetries
 	}
 
 	var lastErr error
@@ -265,16 +224,4 @@ func retry(ctx context.Context, maxAttempts int, fn func() error) error {
 		return lastErr
 	}
 	return err
-}
-
-func ContextWithLogger(ctx context.Context, logger logr.Logger) context.Context {
-	return logr.NewContext(ctx, logger)
-}
-
-func LoggerFromContext(ctx context.Context) logr.Logger {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		panic(fmt.Sprintf("logger missing from context: %v", err))
-	}
-	return logger
 }

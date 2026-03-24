@@ -19,8 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 type RGSelectionReason struct {
@@ -186,23 +187,7 @@ func parseCreatedAt(tags map[string]*string) (time.Time, bool) {
 	if err == nil {
 		return parsed.UTC(), true
 	}
-	parsed, err = parseCreatedAtPythonCompatible(raw)
-	if err == nil {
-		return parsed.UTC(), true
-	}
 	return time.Time{}, false
-}
-
-func parseCreatedAtPythonCompatible(raw string) (time.Time, error) {
-	normalized := strings.TrimSuffix(strings.TrimSuffix(raw, "Z"), "z")
-	if dotIndex := strings.Index(normalized, "."); dotIndex >= 0 {
-		normalized = normalized[:dotIndex]
-	}
-	parsed, err := time.Parse("2006-01-02T15:04:05-07:00", normalized+"+00:00")
-	if err != nil {
-		return time.Time{}, err
-	}
-	return parsed.UTC(), nil
 }
 
 func tagsEqMatch(actualTags map[string]*string, expected map[string]string) bool {

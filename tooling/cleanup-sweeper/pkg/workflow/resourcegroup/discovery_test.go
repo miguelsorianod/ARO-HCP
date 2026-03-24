@@ -21,9 +21,10 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
 func TestDiscoverCandidates(t *testing.T) {
@@ -39,18 +40,30 @@ func TestDiscoverCandidates(t *testing.T) {
 		{
 			name: "explicit-only candidates are sorted",
 			opts: RunOptions{
-				DiscoverResourceGroups: false,
-				ResourceGroups:         sets.New("rg-b", "rg-a"),
+				ResourceGroups: sets.New("rg-b", "rg-a"),
+				Policy: policy.RGOrderedPolicy{
+					Discovery: policy.RGDiscoveryPolicy{},
+				},
 			},
 			expectErr: false,
 			want:      []string{"rg-a", "rg-b"},
 		},
 		{
-			name: "discovery requires reference time when enabled",
+			name: "policy discovery requires reference time when rules are configured",
 			opts: RunOptions{
-				DiscoverResourceGroups: true,
-				ResourceGroups:         sets.New[string](),
-				ReferenceTime:          time.Time{},
+				ResourceGroups: sets.New[string](),
+				ReferenceTime:  time.Time{},
+				Policy: policy.RGOrderedPolicy{
+					Discovery: policy.RGDiscoveryPolicy{
+						Rules: []policy.RGDiscoveryRule{
+							{
+								Action:    policy.RGDiscoveryActionDelete,
+								Match:     policy.RGDiscoveryMatch{Any: true},
+								OlderThan: time.Hour,
+							},
+						},
+					},
+				},
 			},
 			expectErr:   true,
 			errContains: "reference time is required",
@@ -61,7 +74,7 @@ func TestDiscoverCandidates(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := cleanuprunner.ContextWithLogger(context.Background(), logr.Discard())
+			ctx := logr.NewContext(context.Background(), logr.Discard())
 			got, err := discoverCandidates(ctx, tc.opts)
 			if tc.expectErr {
 				if err == nil {

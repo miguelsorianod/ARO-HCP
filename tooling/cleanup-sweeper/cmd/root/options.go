@@ -20,18 +20,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/spf13/cobra"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 	resourcegroupworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/workflow/resourcegroup"
 	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/workflow/shared"
 )
-
-const defaultParallelism = 8
 
 type WorkflowMode string
 
@@ -44,7 +45,7 @@ func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		Workflow:    string(WorkflowRGOrdered),
 		Wait:        true,
-		Parallelism: defaultParallelism,
+		Parallelism: cleanuprunner.DefaultParallelism,
 	}
 }
 
@@ -57,8 +58,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&opts.Wait, "wait", opts.Wait, "Wait for long-running deletions to complete.")
 	cmd.Flags().IntVar(&opts.Parallelism, "parallelism", opts.Parallelism, "Maximum parallel deletions per step.")
 
-	cmd.Flags().BoolVar(&opts.DiscoverResourceGroups, "discover-resource-groups", opts.DiscoverResourceGroups, fmt.Sprintf("Discover candidate resource groups from policy rules (default: %t).", opts.DiscoverResourceGroups))
-	cmd.Flags().StringSliceVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "Explicit resource group target (repeatable).")
+	cmd.Flags().StringSliceVar(&opts.ResourceGroups, "resource-group", opts.ResourceGroups, "Explicit resource group target (repeatable). Optional; when omitted, rg-ordered discovery rules drive candidate selection.")
 
 	return nil
 }
@@ -72,8 +72,7 @@ type RawOptions struct {
 	Wait        bool
 	Parallelism int
 
-	DiscoverResourceGroups bool
-	ResourceGroups         []string
+	ResourceGroups []string
 }
 
 type validatedOptions struct {
@@ -100,8 +99,6 @@ type completedOptions struct {
 	DryRun      bool
 	Wait        bool
 	Parallelism int
-
-	DiscoverResourceGroups bool
 
 	ResourceGroups sets.Set[string]
 }
@@ -140,17 +137,12 @@ func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
 		pol = loadedPolicy
 	}
 
-	if workflow == WorkflowRGOrdered && !hasRGOrderedSelectors(o.DiscoverResourceGroups, normalizedResourceGroups) {
-		return nil, fmt.Errorf("rg-ordered workflow requires at least one RG selector or --discover-resource-groups")
-	}
 	if workflow == WorkflowSharedLeftovers {
-		if hasRGOrderedSelectors(o.DiscoverResourceGroups, normalizedResourceGroups) {
+		if normalizedResourceGroups.Len() > 0 {
 			return nil, fmt.Errorf("rg-ordered selectors are not allowed for shared-leftovers workflow")
 		}
 	}
-	if workflow == WorkflowRGOrdered && o.DiscoverResourceGroups && len(pol.RGOrdered.Discovery.Rules) == 0 {
-		return nil, fmt.Errorf("rg-ordered discovery requires rgOrdered.discovery.rules in policy")
-	}
+
 	return &ValidatedOptions{
 		validatedOptions: &validatedOptions{
 			RawOptions: o,
@@ -174,23 +166,26 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 
 	return &Options{
 		completedOptions: &completedOptions{
-			AzureCredential:        cred,
-			Policy:                 o.policy,
-			Workflow:               o.workflow,
-			SubscriptionID:         subscriptionID,
-			PolicyFile:             policyFile,
-			ReferenceTime:          referenceTime,
-			DryRun:                 o.DryRun,
-			Wait:                   o.Wait,
-			Parallelism:            o.Parallelism,
-			DiscoverResourceGroups: o.DiscoverResourceGroups,
-			ResourceGroups:         resourceGroups,
+			AzureCredential: cred,
+			Policy:          o.policy,
+			Workflow:        o.workflow,
+			SubscriptionID:  subscriptionID,
+			PolicyFile:      policyFile,
+			ReferenceTime:   referenceTime,
+			DryRun:          o.DryRun,
+			Wait:            o.Wait,
+			Parallelism:     o.Parallelism,
+			ResourceGroups:  resourceGroups,
 		},
 	}, nil
 }
 
 func (o *Options) Run(ctx context.Context) error {
-	logger := cleanuprunner.LoggerFromContext(ctx).WithValues(
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	logger = logger.WithValues(
 		"workflow", o.Workflow,
 		"dryRun", o.DryRun,
 		"subscriptionID", o.SubscriptionID,
@@ -201,15 +196,14 @@ func (o *Options) Run(ctx context.Context) error {
 	switch o.Workflow {
 	case WorkflowRGOrdered:
 		err := resourcegroupworkflow.Run(ctx, resourcegroupworkflow.RunOptions{
-			SubscriptionID:         o.SubscriptionID,
-			AzureCredential:        o.AzureCredential,
-			DryRun:                 o.DryRun,
-			Wait:                   o.Wait,
-			Parallelism:            o.Parallelism,
-			DiscoverResourceGroups: o.DiscoverResourceGroups,
-			ResourceGroups:         o.ResourceGroups,
-			Policy:                 o.Policy.RGOrdered,
-			ReferenceTime:          o.ReferenceTime,
+			SubscriptionID:  o.SubscriptionID,
+			AzureCredential: o.AzureCredential,
+			DryRun:          o.DryRun,
+			Wait:            o.Wait,
+			Parallelism:     o.Parallelism,
+			ResourceGroups:  o.ResourceGroups,
+			Policy:          o.Policy.RGOrdered,
+			ReferenceTime:   o.ReferenceTime,
 		})
 		if err != nil {
 			return err
@@ -242,10 +236,6 @@ func parseWorkflowMode(raw string) (WorkflowMode, error) {
 	default:
 		return "", fmt.Errorf("--workflow must be one of: %s, %s", WorkflowRGOrdered, WorkflowSharedLeftovers)
 	}
-}
-
-func hasRGOrderedSelectors(discoverResourceGroups bool, resourceGroups sets.Set[string]) bool {
-	return discoverResourceGroups || resourceGroups.Len() > 0
 }
 
 func setFromTrimmed(values []string) sets.Set[string] {

@@ -19,18 +19,21 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
 func TestRun_NoCandidatesReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	ctx := cleanuprunner.ContextWithLogger(context.Background(), logr.Discard())
+	ctx := logr.NewContext(context.Background(), logr.Discard())
 	err := Run(ctx, RunOptions{
-		DiscoverResourceGroups: false,
-		ResourceGroups:         sets.New[string](),
+		ResourceGroups: sets.New[string](),
+		Policy: policy.RGOrderedPolicy{
+			Discovery: policy.RGDiscoveryPolicy{},
+		},
 	})
 	if err != nil {
 		t.Fatalf("expected no error when no candidates exist, got %v", err)

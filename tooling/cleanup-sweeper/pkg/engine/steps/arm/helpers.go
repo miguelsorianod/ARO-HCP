@@ -17,11 +17,8 @@ package arm
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
@@ -80,62 +77,6 @@ func HasLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, 
 	return false
 }
 
-func ResolveAPIVersion(
-	ctx context.Context,
-	providersClient *armresources.ProvidersClient,
-	resourceType string,
-) (string, error) {
-	var providerNamespace, resourceTypeName string
-	if idx := strings.Index(resourceType, "/"); idx > 0 {
-		providerNamespace = resourceType[:idx]
-		resourceTypeName = resourceType[idx+1:]
-	} else {
-		return "", fmt.Errorf("invalid resource type format: %s", resourceType)
-	}
-
-	provider, err := providersClient.Get(ctx, providerNamespace, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to get provider metadata for %s: %w", providerNamespace, err)
-	}
-
-	if provider.ResourceTypes != nil {
-		for _, rt := range provider.ResourceTypes {
-			if rt.ResourceType != nil && *rt.ResourceType == resourceTypeName && len(rt.APIVersions) > 0 {
-				for _, version := range rt.APIVersions {
-					if version != nil && !strings.Contains(*version, "preview") {
-						return *version, nil
-					}
-				}
-				if rt.APIVersions[0] != nil {
-					return *rt.APIVersions[0], nil
-				}
-			}
-		}
-	}
-	return "", fmt.Errorf("resource type %s not found in provider %s metadata", resourceTypeName, providerNamespace)
-}
-
-func DeleteByIDWithCache(
-	ctx context.Context,
-	client *armresources.Client,
-	providersClient *armresources.ProvidersClient,
-	resourceID string,
-	resourceType string,
-	wait bool,
-	cache *apiVersionCache,
-) error {
-	apiVersion, ok := cache.Get(resourceType)
-	if !ok {
-		var err error
-		apiVersion, err = ResolveAPIVersion(ctx, providersClient, resourceType)
-		if err != nil {
-			return fmt.Errorf("failed to get API version for %s: %w", resourceType, err)
-		}
-		cache.Set(resourceType, apiVersion)
-	}
-	return DeleteByID(ctx, client, resourceID, apiVersion, wait)
-}
-
 func DeleteByID(
 	ctx context.Context,
 	client *armresources.Client,
@@ -148,14 +89,8 @@ func DeleteByID(
 		return err
 	}
 	if wait {
-		return PollUntilDone(ctx, poller)
+		_, err = poller.PollUntilDone(ctx, nil)
+		return err
 	}
 	return nil
-}
-
-func PollUntilDone[T any](ctx context.Context, poller *runtime.Poller[T]) error {
-	_, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
-		Frequency: 10 * time.Second,
-	})
-	return err
 }

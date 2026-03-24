@@ -20,11 +20,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
 	cleanupengine "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine"
-	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
@@ -36,22 +38,24 @@ type RunOptions struct {
 	Wait        bool
 	Parallelism int
 
-	DiscoverResourceGroups bool
-	ResourceGroups         sets.Set[string]
-	ReferenceTime          time.Time
+	ResourceGroups sets.Set[string]
+	ReferenceTime  time.Time
 
 	Policy policy.RGOrderedPolicy
 }
 
 func Run(ctx context.Context, opts RunOptions) error {
-	logger := cleanuprunner.LoggerFromContext(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	resourceGroups, err := discoverCandidates(ctx, opts)
 	if err != nil {
 		return err
 	}
 	if len(resourceGroups) == 0 {
-		logger.Info("No candidate resource groups found for rg-ordered workflow")
+		logger.Info("No candidate resource groups found for rg-ordered workflow (best-effort no-op)")
 		return nil
 	}
 
@@ -60,7 +64,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 	for _, resourceGroupName := range resourceGroups {
 		rgLogger := logger.WithValues("resourceGroup", resourceGroupName)
-		rgCtx := cleanuprunner.ContextWithLogger(ctx, rgLogger)
+		rgCtx := logr.NewContext(ctx, rgLogger)
 
 		workflow, err := cleanupengine.ResourceGroupOrderedCleanupWorkflow(
 			rgCtx,

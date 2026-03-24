@@ -19,19 +19,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
-	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
 )
 
 const ResourceType = "Microsoft.Resources/resourceGroups"
-
-type DeleteStep struct {
-	runner.DeletionStep
-}
 
 type DeleteStepConfig struct {
 	ResourceGroupName string
@@ -43,58 +39,84 @@ type DeleteStepConfig struct {
 	Verify          runner.VerifyFn
 }
 
-var _ runner.StepOptionsProvider = DeleteStepConfig{}
-
-func (c DeleteStepConfig) StepOptions() runner.StepOptions {
-	return runner.StepOptions{
-		Name:            c.Name,
-		Retries:         c.Retries,
-		ContinueOnError: c.ContinueOnError,
-		Verify:          c.Verify,
-	}
+type deleteStep struct {
+	cfg             DeleteStepConfig
+	name            string
+	retries         int
+	continueOnError bool
+	verify          runner.VerifyFn
 }
 
-func NewDeleteStep(cfg DeleteStepConfig) *DeleteStep {
-	stepOptions := cfg.StepOptions()
-	if stepOptions.Name == "" {
-		stepOptions.Name = "Delete resource group"
+var _ runner.Step = (*deleteStep)(nil)
+
+func NewDeleteStep(cfg DeleteStepConfig) (runner.Step, error) {
+	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
+		return nil, fmt.Errorf("resource group name is required")
+	}
+	if cfg.RGClient == nil {
+		return nil, fmt.Errorf("resource groups client is required")
 	}
 
-	step := &DeleteStep{
-		DeletionStep: runner.DeletionStep{
-			ResourceType: ResourceType,
-			Options:      stepOptions,
-		},
+	stepName := cfg.Name
+	if strings.TrimSpace(stepName) == "" {
+		stepName = "Delete resource group"
 	}
 
-	step.DiscoverFn = func(ctx context.Context, _ string) ([]runner.Target, error) {
-		if cfg.ResourceGroupName == "" {
-			return nil, fmt.Errorf("resource group name is required")
-		}
-		return []runner.Target{{Name: cfg.ResourceGroupName, Type: ResourceType}}, nil
-	}
+	return &deleteStep{
+		cfg:             cfg,
+		name:            stepName,
+		retries:         cfg.Retries,
+		continueOnError: cfg.ContinueOnError,
+		verify:          cfg.Verify,
+	}, nil
+}
 
-	step.DeleteFn = func(ctx context.Context, target runner.Target, wait bool) error {
-		poller, err := cfg.RGClient.BeginDelete(ctx, target.Name, nil)
-		if err != nil {
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-				return nil
-			}
-			return err
-		}
-		if wait {
-			return armhelpers.PollUntilDone(ctx, poller)
-		}
+func MustNewDeleteStep(cfg DeleteStepConfig) runner.Step {
+	step, err := NewDeleteStep(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return step
+}
+
+func (s *deleteStep) Name() string {
+	return s.name
+}
+
+func (s *deleteStep) RetryLimit() int {
+	if s.retries < runner.DefaultRetries {
+		return runner.DefaultRetries
+	}
+	return s.retries
+}
+
+func (s *deleteStep) ContinueOnError() bool {
+	return s.continueOnError
+}
+
+func (s *deleteStep) Verify(ctx context.Context) error {
+	if s.verify == nil {
 		return nil
 	}
+	return s.verify(ctx)
+}
 
-	step.VerifyFn = func(ctx context.Context) error {
-		if stepOptions.Verify == nil {
+func (s *deleteStep) Discover(context.Context) ([]runner.Target, error) {
+	return []runner.Target{{Name: s.cfg.ResourceGroupName, Type: ResourceType}}, nil
+}
+
+func (s *deleteStep) Delete(ctx context.Context, target runner.Target, wait bool) error {
+	poller, err := s.cfg.RGClient.BeginDelete(ctx, target.Name, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
 			return nil
 		}
-		return stepOptions.Verify(ctx)
+		return err
 	}
-
-	return step
+	if wait {
+		_, err = poller.PollUntilDone(ctx, nil)
+		return err
+	}
+	return nil
 }

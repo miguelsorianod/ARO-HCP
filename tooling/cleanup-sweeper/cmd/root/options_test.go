@@ -37,13 +37,13 @@ func TestRawOptionsValidate_RGOrderedRejectsWhitespaceOnlyResourceGroup(t *testi
 
 	policyPath := writePolicyFile(t)
 	testCases := []struct {
-		name           string
-		opts           RawOptions
-		expectErr      bool
-		errContains    string
+		name        string
+		opts        RawOptions
+		expectErr   bool
+		errContains string
 	}{
 		{
-			name: "rg-ordered rejects whitespace-only resource group",
+			name: "rg-ordered accepts whitespace-only resource group and relies on policy discovery",
 			opts: RawOptions{
 				SubscriptionID: "sub-id",
 				Workflow:       string(WorkflowRGOrdered),
@@ -52,8 +52,7 @@ func TestRawOptionsValidate_RGOrderedRejectsWhitespaceOnlyResourceGroup(t *testi
 				Parallelism:    1,
 				ResourceGroups: []string{"   "},
 			},
-			expectErr:   true,
-			errContains: "requires at least one RG selector or --discover-resource-groups",
+			expectErr: false,
 		},
 		{
 			name: "rg-ordered allows trimmed non-empty resource group",
@@ -77,6 +76,18 @@ func TestRawOptionsValidate_RGOrderedRejectsWhitespaceOnlyResourceGroup(t *testi
 				ResourceGroups: []string{"   "},
 			},
 			expectErr: false,
+		},
+		{
+			name: "shared-leftovers rejects explicit rg selectors",
+			opts: RawOptions{
+				SubscriptionID: "sub-id",
+				Workflow:       string(WorkflowSharedLeftovers),
+				DryRun:         true,
+				Parallelism:    1,
+				ResourceGroups: []string{"rg-one"},
+			},
+			expectErr:   true,
+			errContains: "rg-ordered selectors are not allowed for shared-leftovers workflow",
 		},
 	}
 

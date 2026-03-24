@@ -16,6 +16,10 @@ package network
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
+	"github.com/go-logr/logr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
@@ -27,10 +31,6 @@ import (
 )
 
 const NSPResourceType = "Microsoft.Network/networkSecurityPerimeters"
-
-type NSPForceDeleteStep struct {
-	runner.DeletionStep
-}
 
 type NSPForceDeleteStepConfig struct {
 	ResourceGroupName string
@@ -44,71 +44,115 @@ type NSPForceDeleteStepConfig struct {
 	Verify          runner.VerifyFn
 }
 
-var _ runner.StepOptionsProvider = NSPForceDeleteStepConfig{}
-
-func (c NSPForceDeleteStepConfig) StepOptions() runner.StepOptions {
-	return runner.StepOptions{
-		Name:            c.Name,
-		Retries:         c.Retries,
-		ContinueOnError: c.ContinueOnError,
-		Verify:          c.Verify,
-	}
+type nspForceDeleteStep struct {
+	cfg             NSPForceDeleteStepConfig
+	name            string
+	retries         int
+	continueOnError bool
+	verify          runner.VerifyFn
 }
 
-func NewNSPForceDeleteStep(cfg NSPForceDeleteStepConfig) *NSPForceDeleteStep {
-	stepOptions := cfg.StepOptions()
-	if stepOptions.Name == "" {
-		stepOptions.Name = "Delete network security perimeters"
+var _ runner.Step = (*nspForceDeleteStep)(nil)
+
+func NewNSPForceDeleteStep(cfg NSPForceDeleteStepConfig) (runner.Step, error) {
+	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
+		return nil, fmt.Errorf("resource group name is required")
+	}
+	if cfg.ResourcesClient == nil {
+		return nil, fmt.Errorf("resources client is required")
+	}
+	if cfg.LocksClient == nil {
+		return nil, fmt.Errorf("management locks client is required")
+	}
+	if cfg.NSPClient == nil {
+		return nil, fmt.Errorf("network security perimeters client is required")
 	}
 
-	step := &NSPForceDeleteStep{
-		DeletionStep: runner.DeletionStep{
-			ResourceType: NSPResourceType,
-			Options:      stepOptions,
-		},
+	stepName := cfg.Name
+	if strings.TrimSpace(stepName) == "" {
+		stepName = "Delete network security perimeters"
 	}
-	step.DiscoverFn = func(ctx context.Context, resourceType string) ([]runner.Target, error) {
-		resources, err := armhelpers.ListByType(ctx, cfg.ResourcesClient, cfg.ResourceGroupName, resourceType)
-		if err != nil {
-			return nil, err
-		}
-		targets := make([]runner.Target, 0, len(resources))
-		for _, resource := range resources {
-			if resource == nil || resource.ID == nil || resource.Name == nil || resource.Type == nil {
-				continue
-			}
-			targets = append(targets, runner.Target{
-				ID:   *resource.ID,
-				Name: *resource.Name,
-				Type: *resource.Type,
-			})
-		}
-		return targets, nil
+
+	return &nspForceDeleteStep{
+		cfg:             cfg,
+		name:            stepName,
+		retries:         cfg.Retries,
+		continueOnError: cfg.ContinueOnError,
+		verify:          cfg.Verify,
+	}, nil
+}
+
+func MustNewNSPForceDeleteStep(cfg NSPForceDeleteStepConfig) runner.Step {
+	step, err := NewNSPForceDeleteStep(cfg)
+	if err != nil {
+		panic(err)
 	}
-	step.SkipFn = func(ctx context.Context, target runner.Target) (skip bool, reason string, err error) {
-		if armhelpers.HasLocks(ctx, cfg.LocksClient, target.ID) {
-			return true, "locked", nil
-		}
-		return false, "", nil
+	return step
+}
+
+func (s *nspForceDeleteStep) Name() string {
+	return s.name
+}
+
+func (s *nspForceDeleteStep) RetryLimit() int {
+	if s.retries < runner.DefaultRetries {
+		return runner.DefaultRetries
 	}
-	step.DeleteFn = func(ctx context.Context, target runner.Target, wait bool) error {
-		poller, err := cfg.NSPClient.BeginDelete(ctx, cfg.ResourceGroupName, target.Name, &armnetwork.SecurityPerimetersClientBeginDeleteOptions{
-			ForceDeletion: to.Ptr(true),
-		})
-		if err != nil {
-			return err
-		}
-		if wait {
-			return armhelpers.PollUntilDone(ctx, poller)
-		}
+	return s.retries
+}
+
+func (s *nspForceDeleteStep) ContinueOnError() bool {
+	return s.continueOnError
+}
+
+func (s *nspForceDeleteStep) Verify(ctx context.Context) error {
+	if s.verify == nil {
 		return nil
 	}
-	step.VerifyFn = func(ctx context.Context) error {
-		if stepOptions.Verify == nil {
-			return nil
-		}
-		return stepOptions.Verify(ctx)
-	}
+	return s.verify(ctx)
+}
 
-	return step
+func (s *nspForceDeleteStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	resources, err := armhelpers.ListByType(ctx, s.cfg.ResourcesClient, s.cfg.ResourceGroupName, NSPResourceType)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]runner.Target, 0, len(resources))
+	for _, resource := range resources {
+		if resource == nil || resource.ID == nil || resource.Name == nil || resource.Type == nil {
+			continue
+		}
+		targets = append(targets, runner.Target{
+			ID:   *resource.ID,
+			Name: *resource.Name,
+			Type: *resource.Type,
+		})
+	}
+	filtered := make([]runner.Target, 0, len(targets))
+	for _, target := range targets {
+		if armhelpers.HasLocks(ctx, s.cfg.LocksClient, target.ID) {
+			logger.Info("Skipping deletion target", "step", s.Name(), "resource", target.Name, "reason", "locked")
+			continue
+		}
+		filtered = append(filtered, target)
+	}
+	return filtered, nil
+}
+
+func (s *nspForceDeleteStep) Delete(ctx context.Context, target runner.Target, wait bool) error {
+	poller, err := s.cfg.NSPClient.BeginDelete(ctx, s.cfg.ResourceGroupName, target.Name, &armnetwork.SecurityPerimetersClientBeginDeleteOptions{
+		ForceDeletion: to.Ptr(true),
+	})
+	if err != nil {
+		return err
+	}
+	if wait {
+		_, err = poller.PollUntilDone(ctx, nil)
+		return err
+	}
+	return nil
 }

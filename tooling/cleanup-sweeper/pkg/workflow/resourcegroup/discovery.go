@@ -19,14 +19,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
 func discoverCandidates(ctx context.Context, opts RunOptions) ([]string, error) {
-	logger := cleanuprunner.LoggerFromContext(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	candidateSources := map[string]string{}
 	for _, resourceGroup := range sets.List(opts.ResourceGroups) {
@@ -66,10 +70,13 @@ func discoverPolicyCandidates(
 	opts RunOptions,
 	candidateSources map[string]string,
 ) (sets.Set[string], error) {
-	logger := cleanuprunner.LoggerFromContext(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	discoveredResourceGroups := sets.New[string]()
-	if !opts.DiscoverResourceGroups {
+	if len(opts.Policy.Discovery.Rules) == 0 {
 		return discoveredResourceGroups, nil
 	}
 	if opts.ReferenceTime.IsZero() {
@@ -83,7 +90,10 @@ func discoverPolicyCandidates(
 
 	resourceGroups, err := listResourceGroups(ctx, rgClient)
 	if err != nil {
-		logger.Info("Failed to list resource groups; continuing with explicit targets", "error", err)
+		logger.Info(
+			"Best-effort mode: failed to list resource groups; continuing with explicit targets only",
+			"error", err,
+		)
 		return discoveredResourceGroups, nil
 	}
 

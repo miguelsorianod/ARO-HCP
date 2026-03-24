@@ -15,10 +15,74 @@
 package roleassignments
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 )
+
+func TestNewDeleteOrphanedStep_ExecutionOptions(t *testing.T) {
+	t.Parallel()
+
+	defaultStep, err := NewDeleteOrphanedStep(validDeleteOrphanedStepConfig())
+	if err != nil {
+		t.Fatalf("expected constructor to succeed, got error: %v", err)
+	}
+	if got := defaultStep.Name(); got != "Delete orphaned role assignments" {
+		t.Fatalf("expected default step name %q, got %q", "Delete orphaned role assignments", got)
+	}
+	if got := defaultStep.RetryLimit(); got != 1 {
+		t.Fatalf("expected default retry limit 1, got %d", got)
+	}
+	if got := defaultStep.ContinueOnError(); got {
+		t.Fatalf("expected continueOnError false, got %t", got)
+	}
+
+	customCfg := validDeleteOrphanedStepConfig()
+	customCfg.Name = "custom-name"
+	customCfg.Retries = 3
+	customCfg.ContinueOnError = true
+	customStep, err := NewDeleteOrphanedStep(customCfg)
+	if err != nil {
+		t.Fatalf("expected constructor to succeed, got error: %v", err)
+	}
+	if got := customStep.Name(); got != "custom-name" {
+		t.Fatalf("expected step name %q, got %q", "custom-name", got)
+	}
+	if got := customStep.RetryLimit(); got != 3 {
+		t.Fatalf("expected retry limit 3, got %d", got)
+	}
+	if got := customStep.ContinueOnError(); !got {
+		t.Fatalf("expected continueOnError true, got %t", got)
+	}
+}
+
+func TestNewDeleteOrphanedStep_ReturnsErrorWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := validDeleteOrphanedStepConfig()
+	cfg.SubscriptionID = ""
+	if _, err := NewDeleteOrphanedStep(cfg); err == nil {
+		t.Fatalf("expected validation error for missing subscription ID")
+	}
+}
+
+func TestMustNewDeleteOrphanedStep_PanicsWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := validDeleteOrphanedStepConfig()
+	cfg.AzureCredential = nil
+
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic for invalid config")
+		}
+	}()
+	_ = MustNewDeleteOrphanedStep(cfg)
+}
 
 func TestEscapeODataString_EscapesSingleQuotes(t *testing.T) {
 	t.Parallel()
@@ -121,3 +185,17 @@ func TestRoleAssignmentName_FallsBackToID(t *testing.T) {
 }
 
 func strPtr(value string) *string { return &value }
+
+func validDeleteOrphanedStepConfig() DeleteOrphanedStepConfig {
+	return DeleteOrphanedStepConfig{
+		RoleAssignmentsClient: &armauthorization.RoleAssignmentsClient{},
+		AzureCredential:       roleAssignmentsTestCredential{},
+		SubscriptionID:        "00000000-0000-0000-0000-000000000000",
+	}
+}
+
+type roleAssignmentsTestCredential struct{}
+
+func (roleAssignmentsTestCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: "token", ExpiresOn: time.Now().Add(time.Hour)}, nil
+}

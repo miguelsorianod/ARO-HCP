@@ -37,6 +37,9 @@ func (p *RGOrderedPolicy) Validate(fieldPrefix string) error {
 }
 
 func (p *RGDiscoveryPolicy) Validate(fieldPrefix string) error {
+	if len(p.Rules) == 0 {
+		return fmt.Errorf("%s.rules: must define at least one discovery rule", fieldPrefix)
+	}
 	for idx := range p.Rules {
 		ruleFieldPrefix := fmt.Sprintf("%s.rules[%d]", fieldPrefix, idx)
 		if err := p.Rules[idx].Validate(ruleFieldPrefix); err != nil {

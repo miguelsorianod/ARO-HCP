@@ -14,9 +14,15 @@
 
 package network
 
-import "testing"
+import (
+	"testing"
 
-func TestNSPForceDeleteStepConfig_StepOptions(t *testing.T) {
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+)
+
+func TestNSPForceDeleteStepConfig_ExecutionOptions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -27,15 +33,24 @@ func TestNSPForceDeleteStepConfig_StepOptions(t *testing.T) {
 		{
 			name: "step options projection",
 			cfg: NSPForceDeleteStepConfig{
-				Name:            "custom-name",
-				Retries:         2,
-				ContinueOnError: true,
+				ResourceGroupName: "rg",
+				ResourcesClient:   &armresources.Client{},
+				LocksClient:       &armlocks.ManagementLocksClient{},
+				NSPClient:         &armnetwork.SecurityPerimetersClient{},
+				Name:              "custom-name",
+				Retries:           2,
+				ContinueOnError:   true,
 			},
 			wantStepName: "custom-name",
 		},
 		{
-			name:         "default step name",
-			cfg:          NSPForceDeleteStepConfig{},
+			name: "default step name",
+			cfg: NSPForceDeleteStepConfig{
+				ResourceGroupName: "rg",
+				ResourcesClient:   &armresources.Client{},
+				LocksClient:       &armlocks.ManagementLocksClient{},
+				NSPClient:         &armnetwork.SecurityPerimetersClient{},
+			},
 			wantStepName: "Delete network security perimeters",
 		},
 	}
@@ -44,21 +59,53 @@ func TestNSPForceDeleteStepConfig_StepOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := tc.cfg.StepOptions()
-			if tc.cfg.Name != "" && opts.Name != tc.cfg.Name {
-				t.Fatalf("expected name %q, got %q", tc.cfg.Name, opts.Name)
+			step, err := NewNSPForceDeleteStep(tc.cfg)
+			if err != nil {
+				t.Fatalf("expected constructor to succeed, got error: %v", err)
 			}
-			if opts.Retries != tc.cfg.Retries {
-				t.Fatalf("expected retries %d, got %d", tc.cfg.Retries, opts.Retries)
-			}
-			if opts.ContinueOnError != tc.cfg.ContinueOnError {
-				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, opts.ContinueOnError)
-			}
-
-			step := NewNSPForceDeleteStep(tc.cfg)
 			if got := step.Name(); got != tc.wantStepName {
 				t.Fatalf("expected step name %q, got %q", tc.wantStepName, got)
 			}
+			expectedRetryLimit := tc.cfg.Retries
+			if expectedRetryLimit < 1 {
+				expectedRetryLimit = 1
+			}
+			if got := step.RetryLimit(); got != expectedRetryLimit {
+				t.Fatalf("expected retry limit %d, got %d", expectedRetryLimit, got)
+			}
+			if got := step.ContinueOnError(); got != tc.cfg.ContinueOnError {
+				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, got)
+			}
 		})
 	}
+}
+
+func TestNewNSPForceDeleteStep_ReturnsErrorWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := NSPForceDeleteStepConfig{
+		ResourceGroupName: "rg",
+		ResourcesClient:   &armresources.Client{},
+		LocksClient:       &armlocks.ManagementLocksClient{},
+		NSPClient:         nil,
+	}
+	if _, err := NewNSPForceDeleteStep(cfg); err == nil {
+		t.Fatalf("expected validation error for missing NSP client")
+	}
+}
+
+func TestMustNewNSPForceDeleteStep_PanicsWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic for invalid config")
+		}
+	}()
+	_ = MustNewNSPForceDeleteStep(NSPForceDeleteStepConfig{
+		ResourceGroupName: "",
+		ResourcesClient:   &armresources.Client{},
+		LocksClient:       &armlocks.ManagementLocksClient{},
+		NSPClient:         &armnetwork.SecurityPerimetersClient{},
+	})
 }

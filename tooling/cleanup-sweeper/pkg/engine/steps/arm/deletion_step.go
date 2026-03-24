@@ -18,40 +18,16 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
+
+	"github.com/go-logr/logr"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
-
-type ARMDeletionStep struct {
-	runner.DeletionStep
-	apiVersionCache *apiVersionCache
-}
-
-type apiVersionCache struct {
-	mu    sync.Mutex
-	cache map[string]string
-}
-
-func newAPIVersionCache() *apiVersionCache {
-	return &apiVersionCache{cache: make(map[string]string)}
-}
-
-func (c *apiVersionCache) Get(key string) (string, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	v, ok := c.cache[key]
-	return v, ok
-}
-
-func (c *apiVersionCache) Set(key, value string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cache[key] = value
-}
 
 type ResourceSelector struct {
 	IncludedResourceTypes []string
@@ -62,7 +38,7 @@ type DeletionStepConfig struct {
 	ResourceGroupName string
 	Client            *armresources.Client
 	LocksClient       *armlocks.ManagementLocksClient
-	ProvidersClient   *armresources.ProvidersClient
+	APIVersionCache   *APIVersionCache
 	Selector          ResourceSelector
 
 	Name            string
@@ -71,116 +47,164 @@ type DeletionStepConfig struct {
 	Verify          runner.VerifyFn
 }
 
-var _ runner.StepOptionsProvider = DeletionStepConfig{}
-
-func (c DeletionStepConfig) StepOptions() runner.StepOptions {
-	return runner.StepOptions{
-		Name:            c.Name,
-		Retries:         c.Retries,
-		ContinueOnError: c.ContinueOnError,
-		Verify:          c.Verify,
-	}
+type deletionStep struct {
+	cfg             DeletionStepConfig
+	name            string
+	retries         int
+	continueOnError bool
+	verify          runner.VerifyFn
+	apiVersionCache *APIVersionCache
+	hasIncluded     bool
 }
 
-func NewDeletionStep(cfg DeletionStepConfig) *ARMDeletionStep {
+var _ runner.Step = (*deletionStep)(nil)
+
+func NewDeletionStep(cfg DeletionStepConfig) (runner.Step, error) {
 	selector := cfg.Selector
 	hasIncluded := len(selector.IncludedResourceTypes) > 0
 	hasExcluded := len(selector.ExcludedResourceTypes) > 0
 	if hasIncluded == hasExcluded {
-		panic("exactly one of IncludedResourceTypes or ExcludedResourceTypes must be set")
+		return nil, fmt.Errorf("exactly one of IncludedResourceTypes or ExcludedResourceTypes must be set")
+	}
+	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
+		return nil, fmt.Errorf("resource group name is required")
+	}
+	if cfg.Client == nil {
+		return nil, fmt.Errorf("resources client is required")
+	}
+	if cfg.LocksClient == nil {
+		return nil, fmt.Errorf("management locks client is required")
+	}
+	if cfg.APIVersionCache == nil {
+		return nil, fmt.Errorf("api version cache is required")
 	}
 
-	stepOptions := cfg.StepOptions()
-	if stepOptions.Name == "" {
+	stepName := cfg.Name
+	if stepName == "" {
 		switch {
 		case hasIncluded && len(selector.IncludedResourceTypes) == 1:
-			stepOptions.Name = fmt.Sprintf("Delete %s", selector.IncludedResourceTypes[0])
+			stepName = fmt.Sprintf("Delete %s", selector.IncludedResourceTypes[0])
 		case hasIncluded:
-			stepOptions.Name = "Delete selected resources"
+			stepName = "Delete selected resources"
 		default:
-			stepOptions.Name = "Delete resources excluding selected types"
+			stepName = "Delete resources excluding selected types"
 		}
 	}
 
-	armds := &ARMDeletionStep{
-		DeletionStep: runner.DeletionStep{
-			ResourceType: "",
-			Options:      stepOptions,
-		},
-		apiVersionCache: newAPIVersionCache(),
+	return &deletionStep{
+		cfg:             cfg,
+		name:            stepName,
+		retries:         cfg.Retries,
+		continueOnError: cfg.ContinueOnError,
+		verify:          cfg.Verify,
+		apiVersionCache: cfg.APIVersionCache,
+		hasIncluded:     hasIncluded,
+	}, nil
+}
+
+func MustNewDeletionStep(cfg DeletionStepConfig) runner.Step {
+	step, err := NewDeletionStep(cfg)
+	if err != nil {
+		panic(err)
+	}
+	return step
+}
+
+func (s *deletionStep) Name() string {
+	return s.name
+}
+
+func (s *deletionStep) RetryLimit() int {
+	if s.retries < runner.DefaultRetries {
+		return runner.DefaultRetries
+	}
+	return s.retries
+}
+
+func (s *deletionStep) ContinueOnError() bool {
+	return s.continueOnError
+}
+
+func (s *deletionStep) Verify(ctx context.Context) error {
+	if s.verify == nil {
+		return nil
+	}
+	return s.verify(ctx)
+}
+
+func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	targets := []runner.Target{}
+	seenByID := sets.New[string]()
+
+	appendTarget := func(resource *armresources.GenericResourceExpanded) {
+		if resource == nil || resource.ID == nil || resource.Name == nil || resource.Type == nil {
+			return
+		}
+		id := *resource.ID
+		if seenByID.Has(id) {
+			return
+		}
+		seenByID.Insert(id)
+		target := runner.Target{
+			ID:   id,
+			Name: *resource.Name,
+			Type: *resource.Type,
+		}
+
+		if HasLocks(ctx, s.cfg.LocksClient, target.ID) {
+			logger.Info("Skipping deletion target", "step", s.Name(), "resource", target.Name, "reason", "locked")
+			return
+		}
+
+		targets = append(targets, target)
 	}
 
-	armds.DiscoverFn = func(ctx context.Context, _ string) ([]runner.Target, error) {
-		targets := []runner.Target{}
-		seenByID := map[string]struct{}{}
-
-		appendTarget := func(resource *armresources.GenericResourceExpanded) {
-			if resource == nil || resource.ID == nil || resource.Name == nil || resource.Type == nil {
-				return
-			}
-			id := *resource.ID
-			if _, exists := seenByID[id]; exists {
-				return
-			}
-			seenByID[id] = struct{}{}
-			targets = append(targets, runner.Target{
-				ID:   id,
-				Name: *resource.Name,
-				Type: *resource.Type,
-			})
-		}
-
-		if hasIncluded {
-			for _, resourceType := range selector.IncludedResourceTypes {
-				resources, err := ListByType(ctx, cfg.Client, cfg.ResourceGroupName, resourceType)
-				if err != nil {
-					return nil, err
-				}
-				for _, resource := range resources {
-					appendTarget(resource)
-				}
-			}
-			return targets, nil
-		}
-
-		excluded := map[string]struct{}{}
-		for _, t := range selector.ExcludedResourceTypes {
-			excluded[strings.ToLower(t)] = struct{}{}
-		}
-
-		pager := cfg.Client.NewListByResourceGroupPager(cfg.ResourceGroupName, nil)
-		for pager.More() {
-			page, err := pager.NextPage(ctx)
+	selector := s.cfg.Selector
+	if s.hasIncluded {
+		for _, resourceType := range selector.IncludedResourceTypes {
+			resources, err := ListByType(ctx, s.cfg.Client, s.cfg.ResourceGroupName, resourceType)
 			if err != nil {
-				return nil, fmt.Errorf("failed to list resources: %w", err)
+				return nil, err
 			}
-			for _, resource := range page.Value {
-				if resource == nil || resource.Type == nil {
-					continue
-				}
-				if _, isExcluded := excluded[strings.ToLower(*resource.Type)]; isExcluded {
-					continue
-				}
+			for _, resource := range resources {
 				appendTarget(resource)
 			}
 		}
 		return targets, nil
 	}
-	armds.DeleteFn = func(ctx context.Context, target runner.Target, wait bool) error {
-		return DeleteByIDWithCache(ctx, cfg.Client, cfg.ProvidersClient, target.ID, target.Type, wait, armds.apiVersionCache)
-	}
-	armds.VerifyFn = func(ctx context.Context) error {
-		if stepOptions.Verify == nil {
-			return nil
-		}
-		return stepOptions.Verify(ctx)
-	}
-	armds.SkipFn = func(ctx context.Context, target runner.Target) (bool, string, error) {
-		if HasLocks(ctx, cfg.LocksClient, target.ID) {
-			return true, "locked", nil
-		}
-		return false, "", nil
+
+	excluded := sets.New[string]()
+	for _, t := range selector.ExcludedResourceTypes {
+		excluded.Insert(strings.ToLower(t))
 	}
 
-	return armds
+	pager := s.cfg.Client.NewListByResourceGroupPager(s.cfg.ResourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list resources: %w", err)
+		}
+		for _, resource := range page.Value {
+			if resource == nil || resource.Type == nil {
+				continue
+			}
+			if excluded.Has(strings.ToLower(*resource.Type)) {
+				continue
+			}
+			appendTarget(resource)
+		}
+	}
+	return targets, nil
+}
+
+func (s *deletionStep) Delete(ctx context.Context, target runner.Target, wait bool) error {
+	apiVersion, err := s.apiVersionCache.Get(ctx, target.Type)
+	if err != nil {
+		return fmt.Errorf("failed to resolve API version for %s: %w", target.Type, err)
+	}
+	return DeleteByID(ctx, s.cfg.Client, target.ID, apiVersion, wait)
 }

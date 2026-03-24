@@ -20,41 +20,38 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
-func TestDeleteStepConfig_StepOptions(t *testing.T) {
+func TestDeleteStepConfig_ExecutionOptions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name              string
-		cfg               DeleteStepConfig
-		expectDiscoverErr bool
-		wantStepName      string
-		wantTargetName    string
+		name           string
+		cfg            DeleteStepConfig
+		wantStepName   string
+		wantTargetName string
 	}{
 		{
-			name: "step options projection and default discover failure",
+			name: "step options projection and discover success",
 			cfg: DeleteStepConfig{
-				Name:            "custom-name",
-				Retries:         3,
-				ContinueOnError: true,
+				ResourceGroupName: "rg-custom",
+				RGClient:          &armresources.ResourceGroupsClient{},
+				Name:              "custom-name",
+				Retries:           3,
+				ContinueOnError:   true,
 			},
-			expectDiscoverErr: true,
-			wantStepName:      "custom-name",
+			wantStepName:   "custom-name",
+			wantTargetName: "rg-custom",
 		},
 		{
-			name:              "default step name",
-			cfg:               DeleteStepConfig{},
-			expectDiscoverErr: true,
-			wantStepName:      "Delete resource group",
-		},
-		{
-			name:              "discover returns target",
-			cfg:               DeleteStepConfig{ResourceGroupName: "rg-example"},
-			expectDiscoverErr: false,
-			wantStepName:      "Delete resource group",
-			wantTargetName:    "rg-example",
+			name: "default step name",
+			cfg: DeleteStepConfig{
+				ResourceGroupName: "rg-default",
+				RGClient:          &armresources.ResourceGroupsClient{},
+			},
+			wantStepName:   "Delete resource group",
+			wantTargetName: "rg-default",
 		},
 	}
 
@@ -62,30 +59,26 @@ func TestDeleteStepConfig_StepOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := tc.cfg.StepOptions()
-			if tc.cfg.Name != "" && opts.Name != tc.cfg.Name {
-				t.Fatalf("expected name %q, got %q", tc.cfg.Name, opts.Name)
+			step, err := NewDeleteStep(tc.cfg)
+			if err != nil {
+				t.Fatalf("expected constructor to succeed, got error: %v", err)
 			}
-			if opts.Retries != tc.cfg.Retries {
-				t.Fatalf("expected retries %d, got %d", tc.cfg.Retries, opts.Retries)
-			}
-			if opts.ContinueOnError != tc.cfg.ContinueOnError {
-				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, opts.ContinueOnError)
-			}
-
-			step := NewDeleteStep(tc.cfg)
 			if got := step.Name(); got != tc.wantStepName {
 				t.Fatalf("expected step name %q, got %q", tc.wantStepName, got)
 			}
-
-			ctx := runner.ContextWithLogger(context.Background(), logr.Discard())
-			targets, err := step.Discover(ctx)
-			if tc.expectDiscoverErr {
-				if err == nil {
-					t.Fatalf("expected discover error")
-				}
-				return
+			expectedRetryLimit := tc.cfg.Retries
+			if expectedRetryLimit < 1 {
+				expectedRetryLimit = 1
 			}
+			if got := step.RetryLimit(); got != expectedRetryLimit {
+				t.Fatalf("expected retry limit %d, got %d", expectedRetryLimit, got)
+			}
+			if got := step.ContinueOnError(); got != tc.cfg.ContinueOnError {
+				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, got)
+			}
+
+			ctx := logr.NewContext(context.Background(), logr.Discard())
+			targets, err := step.Discover(ctx)
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
@@ -100,4 +93,30 @@ func TestDeleteStepConfig_StepOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewDeleteStep_ReturnsErrorWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := DeleteStepConfig{
+		ResourceGroupName: "rg",
+		RGClient:          nil,
+	}
+	if _, err := NewDeleteStep(cfg); err == nil {
+		t.Fatalf("expected validation error for missing resource groups client")
+	}
+}
+
+func TestMustNewDeleteStep_PanicsWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic for invalid config")
+		}
+	}()
+	_ = MustNewDeleteStep(DeleteStepConfig{
+		ResourceGroupName: "",
+		RGClient:          &armresources.ResourceGroupsClient{},
+	})
 }

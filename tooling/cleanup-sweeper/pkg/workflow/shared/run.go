@@ -18,10 +18,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	cleanupengine "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine"
-	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
 type RunOptions struct {
@@ -34,7 +35,10 @@ type RunOptions struct {
 }
 
 func Run(ctx context.Context, opts RunOptions) error {
-	logger := cleanuprunner.LoggerFromContext(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
 	logger.Info("Executing shared-leftovers workflow", "implementation", "role-assignments-sweeper")
 
 	workflow, err := cleanupengine.RoleAssignmentsSweeperWorkflow(

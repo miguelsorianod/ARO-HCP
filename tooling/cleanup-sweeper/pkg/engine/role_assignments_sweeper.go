@@ -17,6 +17,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
@@ -33,6 +34,13 @@ func RoleAssignmentsSweeperWorkflow(
 	credential azcore.TokenCredential,
 	opts WorkflowOptions,
 ) (*runner.Engine, error) {
+	if strings.TrimSpace(subscriptionID) == "" {
+		return nil, fmt.Errorf("subscription ID is required")
+	}
+	if credential == nil {
+		return nil, fmt.Errorf("azure credential is required")
+	}
+
 	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, credential, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create role assignments client: %w", err)
@@ -43,7 +51,7 @@ func RoleAssignmentsSweeperWorkflow(
 		DryRun:      opts.DryRun,
 		Wait:        opts.Wait,
 		Steps: []runner.Step{
-			roleassignmentsteps.NewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
+			roleassignmentsteps.MustNewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
 				RoleAssignmentsClient: roleAssignmentsClient,
 				AzureCredential:       credential,
 				SubscriptionID:        subscriptionID,

@@ -14,9 +14,13 @@
 
 package keyvault
 
-import "testing"
+import (
+	"testing"
 
-func TestPurgeDeletedStepConfig_StepOptions(t *testing.T) {
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+)
+
+func TestPurgeDeletedStepConfig_ExecutionOptions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -27,15 +31,20 @@ func TestPurgeDeletedStepConfig_StepOptions(t *testing.T) {
 		{
 			name: "step options projection",
 			cfg: PurgeDeletedStepConfig{
-				Name:            "custom-name",
-				Retries:         4,
-				ContinueOnError: true,
+				ResourceGroupName: "rg",
+				VaultsClient:      &armkeyvault.VaultsClient{},
+				Name:              "custom-name",
+				Retries:           4,
+				ContinueOnError:   true,
 			},
 			wantStepName: "custom-name",
 		},
 		{
-			name:         "default step name",
-			cfg:          PurgeDeletedStepConfig{},
+			name: "default step name",
+			cfg: PurgeDeletedStepConfig{
+				ResourceGroupName: "rg",
+				VaultsClient:      &armkeyvault.VaultsClient{},
+			},
 			wantStepName: "Purge soft-deleted Key Vaults",
 		},
 	}
@@ -44,21 +53,49 @@ func TestPurgeDeletedStepConfig_StepOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := tc.cfg.StepOptions()
-			if tc.cfg.Name != "" && opts.Name != tc.cfg.Name {
-				t.Fatalf("expected name %q, got %q", tc.cfg.Name, opts.Name)
+			step, err := NewPurgeDeletedStep(tc.cfg)
+			if err != nil {
+				t.Fatalf("expected constructor to succeed, got error: %v", err)
 			}
-			if opts.Retries != tc.cfg.Retries {
-				t.Fatalf("expected retries %d, got %d", tc.cfg.Retries, opts.Retries)
-			}
-			if opts.ContinueOnError != tc.cfg.ContinueOnError {
-				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, opts.ContinueOnError)
-			}
-
-			step := NewPurgeDeletedStep(tc.cfg)
 			if got := step.Name(); got != tc.wantStepName {
 				t.Fatalf("expected step name %q, got %q", tc.wantStepName, got)
 			}
+			expectedRetryLimit := tc.cfg.Retries
+			if expectedRetryLimit < 1 {
+				expectedRetryLimit = 1
+			}
+			if got := step.RetryLimit(); got != expectedRetryLimit {
+				t.Fatalf("expected retry limit %d, got %d", expectedRetryLimit, got)
+			}
+			if got := step.ContinueOnError(); got != tc.cfg.ContinueOnError {
+				t.Fatalf("expected continueOnError %t, got %t", tc.cfg.ContinueOnError, got)
+			}
 		})
 	}
+}
+
+func TestNewPurgeDeletedStep_ReturnsErrorWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	cfg := PurgeDeletedStepConfig{
+		ResourceGroupName: "",
+		VaultsClient:      &armkeyvault.VaultsClient{},
+	}
+	if _, err := NewPurgeDeletedStep(cfg); err == nil {
+		t.Fatalf("expected validation error for missing resource group")
+	}
+}
+
+func TestMustNewPurgeDeletedStep_PanicsWhenInvalid(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic for invalid config")
+		}
+	}()
+	_ = MustNewPurgeDeletedStep(PurgeDeletedStepConfig{
+		ResourceGroupName: "rg",
+		VaultsClient:      nil,
+	})
 }
