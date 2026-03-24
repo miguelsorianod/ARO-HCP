@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:52025d924fd25c4f17739f6819bdf6c7acddeef6f3cdef21f39f4fed5dcc6555
+      digest: sha256:9ada289f06b9af65e2957f1eb5aa97c1add2ab0a85da11b27710b63029da1527
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
   operator:
     bundle:
-      digest: sha256:830068f4ad3db31a3ba675f0f174f1f72807850fe547f8ec4f86d8d2339a1122
+      digest: sha256:12594107ba681cc0ac148c44d71175d1c7942d85ff0c556e3a6bd5a455563932
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
 acr:
@@ -35,7 +35,7 @@ adminApi:
     issuer: Self
     name: admin-api-cert-swft-lnstest
   image:
-    digest: sha256:0609756433a51e34d487c1353e6ca3b2b35d70958e6212745f4817ec6f157400
+    digest: sha256:01223f7c60e32210554ce46c63a47bc09507d08ddc98f49f89c8fef6bfcda3d3
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpadminapi
   k8s:
@@ -68,7 +68,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:18d5476700adcd40e9ee2bc1cb62a1150ac1b5e696d7bad6adeea4da88c615db
+      digest: sha256:2ae5282c99fa8c82bb394b23dbcb9ea0fa553e4ec3cce9e39d110f44b6282062
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 automationDryRun: false
@@ -79,7 +79,7 @@ backend:
     tlsCertificatesIssuer: Self
   exitOnPanic: true
   image:
-    digest: sha256:c66a929fcc05a6e0b8acf4993c81e3d6e622b71a5452c1935957c93fb9bfa1e6
+    digest: sha256:1f02a6963d6e4d6734f8432777ac6b924f286fad0136dfff608a6904e77feac6
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
@@ -240,7 +240,7 @@ frontend:
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
-    digest: sha256:dbe283fa0b759ea7112146f2be841a2b7d9c45e9efd41ab382b9b36a8b5bae4c
+    digest: sha256:78749a8731e7cb2d76893c27b5f5ae54db943f55302dbf9975fe66f784a4cc5f
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpfrontend
   k8s:
@@ -360,7 +360,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:4ac6ca8f7fbdfe9148d210d8699c8f1be7ae7677a6f65227ad0e7cc4209abaed
+      digest: sha256:b9a1de42a37c9b838dfa9028233e7d25bfbb1b6ba497f239b47d2cc3e3eae500
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -746,7 +746,7 @@ sessiongate:
     issuer: Self
     name: sessiongate-cert-swft-lnstest
   image:
-    digest: sha256:90b4bc17b10655896816db597fee7465f75df4a7f34d7d0bc310b3619edfb2df
+    digest: sha256:ce93e49b2a1ca67b20897b15a809e38512e0bab52c2baf7fd3e47ddb6faf68f4
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpsessiongate
   k8s:
