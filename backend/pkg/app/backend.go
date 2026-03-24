@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepoolpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
@@ -261,7 +262,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
 	dataDumpController := controllerutils.NewClusterWatchingController(
-		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
+		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, datadumpcontrollers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
+	csStateDumpController := controllerutils.NewClusterWatchingController(
+		"CSStateDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, datadumpcontrollers.NewCSStateDumpController(activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient))
+	csStateWatcherController := controllerutils.NewClusterWatchingController(
+		"CSStateWatcher", b.options.CosmosDBClient, backendInformers, 1*time.Minute, datadumpcontrollers.NewCSStateWatcherController(activeOperationLister, b.options.CosmosDBClient, b.options.ClustersServiceClient))
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",
@@ -503,6 +508,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backendInformers.RunWithContext(ctx)
 
 				go dataDumpController.Run(ctx, 20)
+				go csStateDumpController.Run(ctx, 20)
+				go csStateWatcherController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)
