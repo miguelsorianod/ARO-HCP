@@ -38,44 +38,43 @@ safe_delete() {
 
     log STEP "Deleting $description..."
 
-    # Build kubectl command
-    local cmd="kubectl get $resource_type"
+    # Get resources as JSON to capture both name and namespace
+    local json
     if [[ -n "$namespace" ]]; then
-        cmd="$cmd -n $namespace"
+        json=$(kubectl get "$resource_type" -n "$namespace" -o json 2>/dev/null) || {
+            log INFO "No $description found (CRD may not exist)"
+            return 0
+        }
     else
-        cmd="$cmd --all-namespaces"
+        json=$(kubectl get "$resource_type" --all-namespaces -o json 2>/dev/null) || {
+            log INFO "No $description found (CRD may not exist)"
+            return 0
+        }
     fi
 
-    # Get resources
-    local resources
-    if resources=$(eval "$cmd -o name 2>/dev/null"); then
-        if [[ -z "$resources" ]]; then
-            log INFO "No $description found"
-            return 0
-        fi
+    local count
+    count=$(echo "$json" | jq '.items | length')
+    if [[ "$count" -eq 0 ]]; then
+        log INFO "No $description found"
+        return 0
+    fi
 
-        while IFS= read -r resource; do
-            [[ -z "$resource" ]] && continue
-
+    echo "$json" | jq -r '.items[] | "\(.metadata.namespace) \(.metadata.name)"' | \
+        while read -r ns name; do
             if [[ "$DRY_RUN" == "true" ]]; then
-                log INFO "[DRY RUN] Would delete: $resource"
+                log INFO "[DRY RUN] Would delete: $name in namespace: $ns"
             else
-                log INFO "Deleting: $resource"
-                local delete_cmd="kubectl delete $resource"
-                if [[ -n "$namespace" ]]; then
-                    delete_cmd="$delete_cmd -n $namespace"
-                fi
-
-                if eval "$delete_cmd --ignore-not-found=true --timeout=60s 2>/dev/null"; then
-                    log SUCCESS "Deleted: $resource"
+                log INFO "Deleting: $name in namespace: $ns"
+                # Remove finalizers so deletion doesn't hang after operator is gone
+                kubectl patch "$resource_type" "$name" -n "$ns" \
+                    -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+                if kubectl delete "$resource_type" "$name" -n "$ns" --ignore-not-found=true --timeout=60s 2>/dev/null; then
+                    log SUCCESS "Deleted: $name in namespace: $ns"
                 else
-                    log WARN "Failed to delete: $resource (may already be gone)"
+                    log WARN "Failed to delete: $name in namespace: $ns (may already be gone)"
                 fi
             fi
-        done <<< "$resources"
-    else
-        log INFO "No $description found (CRD may not exist)"
-    fi
+        done
 }
 
 # Step 1: Delete ClusterUrlMonitor instances
