@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -374,10 +375,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create clusters service client: %w", err))
 	}
 
-	operatorsManagedIdentitiesConfig, err := app.NewOperatorsManagedIdentitiesConfig(ctx, f.AzureClusterScopedIdentitiesRoleSetName)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create operators managed identities config: %w", err))
-	}
+	clusterScopedIdentitiesConfig := internalazure.NewClusterScopedIdentitiesConfig(internalazure.RoleDefinitionConfigSetName(f.AzureClusterScopedIdentitiesRoleSetName))
 
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
@@ -396,7 +394,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
 		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
-		OperatorsManagedIdentitiesConfig:   operatorsManagedIdentitiesConfig,
+		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
 	}
 
 	return backendOptions, nil

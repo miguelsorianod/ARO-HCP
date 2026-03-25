@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/operatorsmis"
+	"github.com/blang/semver/v4"
+
 	"github.com/Azure/ARO-HCP/internal/api"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 )
 
 // validateUnknownAndUnsupportedManagedIdentities checks for unknown and unsupported managed identities for the given cluster
@@ -27,13 +29,13 @@ import (
 // An unknown managed identity is a managed identity whose operator name is not defined in the operators managed identities configuration.
 // An unsupported managed identity is a managed identity whose operator name is defined in the operators managed identities configuration
 // but it is not defined within the minOpenShiftVersion and maxOpenShiftVersion constraints defined in the operators managed identities configuration.
-func validateUnknownAndUnsupportedManagedIdentities(cluster *api.HCPOpenShiftCluster, operatorsManagedIdentitiesConfig *operatorsmis.Config) error {
-	err := validateUnknownAndUnsupportedControlPlaneManagedIdentities(cluster, operatorsManagedIdentitiesConfig)
+func validateUnknownAndUnsupportedManagedIdentities(cluster *api.HCPOpenShiftCluster, clusterScopedIdentitiesConfig *internalazure.ClusterScopedIdentitiesConfig) error {
+	err := validateUnknownAndUnsupportedControlPlaneManagedIdentities(cluster, clusterScopedIdentitiesConfig)
 	if err != nil {
 		return err
 	}
 
-	err = validateUnknownAndUnsupportedDataPlaneManagedIdentities(cluster, operatorsManagedIdentitiesConfig)
+	err = validateUnknownAndUnsupportedDataPlaneManagedIdentities(cluster, clusterScopedIdentitiesConfig)
 	if err != nil {
 		return err
 	}
@@ -43,32 +45,30 @@ func validateUnknownAndUnsupportedManagedIdentities(cluster *api.HCPOpenShiftClu
 
 // validateUnknownAndUnsupportedControlPlaneManagedIdentities checks for uknown and unsupported managed identities for the
 // given cluster and operators managed identities configuration. It returns an error if any unknown or unsupported control plane managed identities are found.
-func validateUnknownAndUnsupportedControlPlaneManagedIdentities(cluster *api.HCPOpenShiftCluster, operatorsManagedIdentitiesConfig *operatorsmis.Config) error {
+func validateUnknownAndUnsupportedControlPlaneManagedIdentities(cluster *api.HCPOpenShiftCluster, clusterScopedIdentitiesConfig *internalazure.ClusterScopedIdentitiesConfig) error {
 	unknownIdentitiesFound := []string{}
 	unsupportedIdentitiesFound := []string{}
 	extraIdentities := []string{}
 	// TODO will we need to execute this validations on cluster and/or nodepool upgrades? if so, how would we retrieve the OpenShift version?
-	ocpVersion := cluster.CustomerProperties.Version.ID
+	ocpVersion := api.Ptr(api.Must(semver.ParseTolerant(cluster.CustomerProperties.Version.ID)))
+
 	controlPlaneOperatorsManagedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators
 
 	for operatorName := range controlPlaneOperatorsManagedIdentities {
-		identity, isKnown := operatorsManagedIdentitiesConfig.GetControlPlaneOperatorIdentityConfig(operatorName)
+		identity, isKnown := clusterScopedIdentitiesConfig.ControlPlaneOperatorsIdentities[internalazure.ClusterOperatorIdentifier(operatorName)]
 		if !isKnown {
 			unknownIdentitiesFound = append(unknownIdentitiesFound, operatorName)
 			continue
 		}
 
-		isSupported, err := identity.IsSupportedForOpenshiftVersion(ocpVersion)
-		if err != nil {
-			return err
-		}
+		isSupported := identity.IsSupportedForOpenshiftVersion(ocpVersion)
 		if !isSupported {
 			unsupportedIdentitiesFound = append(unsupportedIdentitiesFound, operatorName)
 			continue
 		}
 
 		// Check if the identity is required only on feature enablement
-		if identity.IdentityRequirement() == operatorsmis.RequiredOnEnablementIdentityRequirement {
+		if identity.Requirement.Type == internalazure.IdentityRequirementTypeAlways {
 			isFeatureEnabled := isOperatorFeatureEnabled(operatorName, cluster)
 			if !isFeatureEnabled {
 				extraIdentities = append(extraIdentities, operatorName)
@@ -99,32 +99,29 @@ func validateUnknownAndUnsupportedControlPlaneManagedIdentities(cluster *api.HCP
 
 // validateUnknownAndUnsupportedDataPlaneManagedIdentities checks for uknown and unsupported managed identities for the
 // given cluster and operators managed identities configuration. It returns an error if any unknown or unsupported data plane managed identities are found.
-func validateUnknownAndUnsupportedDataPlaneManagedIdentities(cluster *api.HCPOpenShiftCluster, operatorsManagedIdentitiesConfig *operatorsmis.Config) error {
+func validateUnknownAndUnsupportedDataPlaneManagedIdentities(cluster *api.HCPOpenShiftCluster, clusterScopedIdentitiesConfig *internalazure.ClusterScopedIdentitiesConfig) error {
 	unknownIdentitiesFound := []string{}
 	unsupportedIdentitiesFound := []string{}
 	extraIdentities := []string{}
 	// TODO will we need to execute this validations on cluster and/or nodepool upgrades? if so, how would we retrieve the OpenShift version?
-	ocpVersion := cluster.CustomerProperties.Version.ID
+	ocpVersion := api.Ptr(api.Must(semver.ParseTolerant(cluster.CustomerProperties.Version.ID)))
 	dataPlaneOperatorsManagedIdentities := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators
 
 	for operatorName := range dataPlaneOperatorsManagedIdentities {
-		identity, isKnown := operatorsManagedIdentitiesConfig.GetDataPlaneOperatorIdentityConfig(operatorName)
+		identity, isKnown := clusterScopedIdentitiesConfig.DataPlaneOperatorsIdentities[internalazure.ClusterOperatorIdentifier(operatorName)]
 		if !isKnown {
 			unknownIdentitiesFound = append(unknownIdentitiesFound, operatorName)
 			continue
 		}
 
-		isSupported, err := identity.IsSupportedForOpenshiftVersion(ocpVersion)
-		if err != nil {
-			return err
-		}
+		isSupported := identity.IsSupportedForOpenshiftVersion(ocpVersion)
 		if !isSupported {
 			unsupportedIdentitiesFound = append(unsupportedIdentitiesFound, operatorName)
 			continue
 		}
 
 		// Check if the identity is required only on feature enablement
-		if identity.IdentityRequirement() == operatorsmis.RequiredOnEnablementIdentityRequirement {
+		if identity.Requirement.Type == internalazure.IdentityRequirementTypeOnEnablement {
 			isFeatureEnabled := isOperatorFeatureEnabled(operatorName, cluster)
 			if !isFeatureEnabled {
 				extraIdentities = append(extraIdentities, operatorName)
@@ -158,7 +155,7 @@ func validateUnknownAndUnsupportedDataPlaneManagedIdentities(cluster *api.HCPOpe
 // cluster. It returns true if the feature is enabled, false otherwise.
 func isOperatorFeatureEnabled(operatorName string, cluster *api.HCPOpenShiftCluster) bool {
 	switch operatorName {
-	case "kms":
+	case string(internalazure.ClusterOperatorIdentifierKMS):
 		return cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType == api.CustomerManagedEncryptionTypeKMS
 	// Add more cases here as new conditional features are implemented
 	// Important: When adding new cases make sure that you update the

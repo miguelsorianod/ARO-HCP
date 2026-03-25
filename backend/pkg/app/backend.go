@@ -48,8 +48,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
-	"github.com/Azure/ARO-HCP/backend/pkg/operatorsmis"
 	"github.com/Azure/ARO-HCP/internal/api"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -92,7 +92,7 @@ type BackendOptions struct {
 	//   the Kubernetes Service Accounts that are to be used for the federation is included in this configuration.
 	// * To create the azure role assignments for the Cluster's Data Plane Operators identities over the Managed Resource Group of the Cluster
 	// * To create the azure role assignments for the Cluster's Control Plane Operators identities over the Managed Resource Group of the Cluster.
-	OperatorsManagedIdentitiesConfig *operatorsmis.Config
+	ClusterScopedIdentitiesConfig *internalazure.ClusterScopedIdentitiesConfig
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
@@ -280,7 +280,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	// as this would be executed in the context of a cluster. Unclear as of now
 	// where. In CS is done during the synchronous create/patch api requests, which
 	// in the RP equivalent might end up being frontend.
-	err := validateUnknownAndUnsupportedManagedIdentities(&api.HCPOpenShiftCluster{}, b.options.OperatorsManagedIdentitiesConfig)
+	err := validateUnknownAndUnsupportedManagedIdentities(&api.HCPOpenShiftCluster{}, b.options.ClusterScopedIdentitiesConfig)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("cluster's managed identities validation error: %w", err))
 	}
