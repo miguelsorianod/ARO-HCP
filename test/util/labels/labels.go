@@ -45,8 +45,9 @@ var (
 )
 
 var (
-	DevelopmentOnly = ginkgo.Label("Development-Only")
-	IntegrationOnly = ginkgo.Label("Integration-Only")
+	DevelopmentOnly  = ginkgo.Label("Development-Only")
+	IntegrationOnly  = ginkgo.Label("Integration-Only")
+	StageAndProdOnly = ginkgo.Label("Stage-And-Prod-Only")
 	// A test case is ARO-HCP-RP-API-Compatible if it doesn't use ARM API (eg.
 	// ARM templates) to communicate with ARO HCP RP, so that it can run
 	// against either ARO HCP RP or ARM endpoint.
