@@ -54,10 +54,7 @@ func NewHCPSerialConsoleHandler(
 }
 
 // ServeHTTP handles GET requests to retrieve serial console output for a specified VM.
-// Query parameters:
-//   - vmName (required): The name of the VM to retrieve console logs
 func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) error {
-	// get the azure resource ID for this HCP
 	resourceID, err := utils.ResourceIDFromContext(request.Context())
 	if err != nil {
 		return arm.NewCloudError(
@@ -68,7 +65,6 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		)
 	}
 
-	//Extract and validate vmName query parameter
 	vmName := request.URL.Query().Get("vmName")
 	if vmName == "" {
 		return arm.NewCloudError(
@@ -88,7 +84,6 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		)
 	}
 
-	// get HCP details
 	hcp, err := h.dbClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(request.Context(), resourceID.Name)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get HCP from database: %w", err))
@@ -107,19 +102,16 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return utils.TrackError(err)
 	}
 
-	// get FPA credentials for customer tenant
 	tokenCredential, err := h.fpaCredentialRetriever.RetrieveCredential(*subscription.Properties.TenantId)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to retrieve Azure credentials: %w", err))
 	}
 
-	// Create Azure Compute client for customer subscription
 	computeClient, err := armcompute.NewVirtualMachinesClient(hcp.ID.SubscriptionID, tokenCredential, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create Azure compute client: %w", err))
 	}
 
-	// Retrieve boot diagnostics data containing serial console blob URI
 	managedResourceGroup := hcp.CustomerProperties.Platform.ManagedResourceGroup
 	sasTokenExpirationMinutes := int32(5)
 	options := &armcompute.VirtualMachinesClientRetrieveBootDiagnosticsDataOptions{
@@ -134,7 +126,6 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	if err != nil {
 		var azErr *azcore.ResponseError
 		if ok := errors.As(err, &azErr); ok && azErr != nil {
-			// Azure returns 404 when VM or resource group doesn't exist
 			if azErr.StatusCode == http.StatusNotFound {
 				return arm.NewCloudError(
 					http.StatusNotFound,
@@ -143,7 +134,6 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 					"VM %s not found in resource group %s", vmName, managedResourceGroup,
 				)
 			}
-			// Azure returns 409 when boot diagnostics is disabled
 			if azErr.StatusCode == http.StatusConflict {
 				return arm.NewCloudError(
 					http.StatusConflict,
@@ -156,7 +146,6 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return utils.TrackError(fmt.Errorf("failed to retrieve boot diagnostics data for VM %s: %w", vmName, err))
 	}
 
-	// verify serial console log blob URI is available
 	if result.SerialConsoleLogBlobURI == nil || *result.SerialConsoleLogBlobURI == "" {
 		return arm.NewCloudError(
 			http.StatusNotFound,
@@ -167,14 +156,11 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		)
 	}
 
-	// fetch blob content via HTTP GET
-	// The blob URI contains a SAS token for authentication, so we can use a simple HTTP GET
 	blobReq, err := http.NewRequestWithContext(request.Context(), http.MethodGet, *result.SerialConsoleLogBlobURI, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to create blob request: %w", err))
 	}
 
-	// download blob content with timeout to avoid stuck handlers on slow blob endpoints
 	httpClient := &http.Client{}
 	blobResp, err := httpClient.Do(blobReq)
 	if err != nil {
@@ -195,8 +181,6 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 	limitedReader := io.LimitReader(blobResp.Body, maxBytes)
 	_, err = io.Copy(writer, limitedReader)
 	if err != nil {
-		// After headers are sent, we cannot return an error response
-		// Log the error and return nil to avoid panic
 		logger := utils.LoggerFromContext(request.Context())
 		logger.Error(err, "failed to stream serial console log", "vmName", vmName)
 		return nil

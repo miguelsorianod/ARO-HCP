@@ -266,8 +266,6 @@ func (tc *perItOrDescribeTestContext) GetCurrentAzureIdentityDetails(ctx context
 	return tc.perBinaryInvocationTestContext.GetCurrentAzureIdentityDetails(ctx)
 }
 
-// createAdminAPIHTTPClient creates an HTTP client configured for Admin API calls with
-// client principal authentication and TLS settings appropriate for the environment.
 func createAdminAPIHTTPClient(identityDetails *AzureIdentityDetails) *http.Client {
 	tlsConfig := &tls.Config{}
 	if IsDevelopmentEnvironment() {
@@ -320,8 +318,6 @@ func (tc *perItOrDescribeTestContext) CreateSREBreakglassCredentials(ctx context
 	return restConfig, expiresAt, nil
 }
 
-// GetFirstVMFromManagedResourceGroup retrieves the name of the first VM found in the managed resource group.
-// Returns an error if no VMs are found or if the Azure API calls fail.
 func (tc *perItOrDescribeTestContext) GetFirstVMFromManagedResourceGroup(ctx context.Context, managedResourceGroupName string) (string, error) {
 	cred, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
 	if err != nil {
@@ -372,7 +368,6 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 
 	By(fmt.Sprintf("disabling boot diagnostics for VM %s", vmName))
 
-	// Create update payload with only the diagnostics profile
 	vmUpdate := armcompute.VirtualMachineUpdate{
 		Properties: &armcompute.VirtualMachineProperties{
 			DiagnosticsProfile: &armcompute.DiagnosticsProfile{
@@ -383,7 +378,6 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 		},
 	}
 
-	// Update VM
 	poller, err := computeClient.BeginUpdate(ctx, managedResourceGroupName, vmName, vmUpdate, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin VM update: %w", err)
@@ -397,7 +391,6 @@ func (tc *perItOrDescribeTestContext) DisableVMBootDiagnostics(ctx context.Conte
 	return nil
 }
 
-// GetSerialConsoleLogs retrieves serial console logs for a VM in an HCP cluster's managed resource group
 func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, resourceID string, vmName string, identityDetails *AzureIdentityDetails) (string, error) {
 	httpClient := createAdminAPIHTTPClient(identityDetails)
 
@@ -414,7 +407,6 @@ func (tc *perItOrDescribeTestContext) GetSerialConsoleLogs(ctx context.Context, 
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add query parameter with proper encoding
 	q := req.URL.Query()
 	q.Add("vmName", vmName)
 	req.URL.RawQuery = q.Encode()
