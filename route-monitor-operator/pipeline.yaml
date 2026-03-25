@@ -16,20 +16,6 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: delete-rmo-custom-resources
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: make delete-custom-resources
-    workingDir: ./
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dryRun:
-      variables:
-      - name: DRY_RUN
-        value: "true"
   - name: delete-helm-release
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
@@ -44,9 +30,23 @@ resourceGroups:
       variables:
       - name: DRY_RUN
         value: "true"
+  - name: delete-rmo-custom-resources
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: make delete-custom-resources
+    workingDir: ./
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dryRun:
+      variables:
+      - name: DRY_RUN
+        value: "true"
     dependsOn:
     - resourceGroup: management
-      step: delete-rmo-custom-resources
+      step: delete-helm-release
   - name: delete-ingresscontroller-hack
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
@@ -63,4 +63,4 @@ resourceGroups:
         value: "true"
     dependsOn:
     - resourceGroup: management
-      step: delete-helm-release
+      step: delete-rmo-custom-resources
