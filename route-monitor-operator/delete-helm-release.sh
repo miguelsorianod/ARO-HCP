@@ -58,22 +58,11 @@ fi
 log STEP "Checking namespace: $NAMESPACE"
 
 if kubectl get namespace "$NAMESPACE" > /dev/null 2>&1; then
-    # Delete all remaining resources in the namespace
-    resource_count=$(kubectl get all -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d '[:space:]')
-    resource_count="${resource_count:-0}"
-
-    if [[ "$resource_count" -gt 0 ]]; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log INFO "[DRY RUN] Would delete $resource_count remaining resources in namespace: $NAMESPACE"
-        else
-            log INFO "Deleting $resource_count remaining resources in namespace: $NAMESPACE"
-            kubectl delete all --all -n "$NAMESPACE" --timeout=60s 2>&1 || true
-        fi
-    fi
-
     if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY RUN] Would delete namespace: $NAMESPACE"
+        log INFO "[DRY RUN] Would delete namespace: $NAMESPACE and all its resources"
     else
+        kubectl delete all --all -n "$NAMESPACE" --timeout=60s 2>&1 || true
+        kubectl delete secrets -n "$NAMESPACE" -l owner=helm --timeout=60s 2>&1 || true
         log STEP "Deleting namespace: $NAMESPACE"
         if kubectl delete namespace "$NAMESPACE" --timeout=60s 2>&1; then
             log SUCCESS "Namespace deleted: $NAMESPACE"
@@ -101,7 +90,7 @@ for crd in "${RMO_CRDS[@]}"; do
         else
             log INFO "Deleting CRD: $crd"
             kubectl patch crd "$crd" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-            if kubectl delete crd "$crd" --timeout=60s 2>&1; then
+            if kubectl delete crd "$crd" --ignore-not-found=true --timeout=60s 2>&1; then
                 log SUCCESS "CRD deleted: $crd"
             else
                 log WARN "Failed to delete CRD: $crd"

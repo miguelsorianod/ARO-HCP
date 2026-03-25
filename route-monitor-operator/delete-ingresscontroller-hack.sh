@@ -57,49 +57,25 @@ fi
 
 # Step 2: Wait for CR to be fully deleted
 if [[ "$DRY_RUN" != "true" ]]; then
-    log INFO "Waiting for IngressController to be fully deleted..."
-    timeout=30
-    while kubectl get ingresscontrollers.operator.openshift.io default -n openshift-ingress-operator > /dev/null 2>&1 && [[ $timeout -gt 0 ]]; do
-        sleep 2
-        ((timeout-=2))
-    done
+    if kubectl get crd ingresscontrollers.operator.openshift.io > /dev/null 2>&1; then
+        log INFO "Waiting for IngressController instances to be fully deleted..."
+        kubectl wait --for=delete ingresscontrollers.operator.openshift.io --all -n openshift-ingress-operator --timeout=60s 2>/dev/null && \
+            log SUCCESS "All IngressController instances deleted" || \
+            log WARN "Timed out waiting for IngressController instances to be deleted"
+    fi
 fi
 
 # Step 3: Delete the IngressController CRD
-log STEP "Step 2: Deleting IngressController CRD"
+log STEP "Step 3: Deleting IngressController CRD"
 
 if kubectl get crd ingresscontrollers.operator.openshift.io > /dev/null 2>&1; then
-    # Check if there are any other IngressController instances
-    instance_count=$(kubectl get ingresscontrollers.operator.openshift.io --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
-
-    if [[ "$instance_count" -gt 0 ]]; then
-        log WARN "Found $instance_count IngressController instance(s) still remaining - will attempt to delete them first"
-
-        if [[ "$DRY_RUN" != "true" ]]; then
-            # Delete all instances
-            kubectl get ingresscontrollers.operator.openshift.io --all-namespaces -o json 2>/dev/null | \
-                jq -r '.items[] | "\(.metadata.name) -n \(.metadata.namespace)"' | \
-                while read -r name flag namespace; do
-                    log INFO "Deleting IngressController: $name in namespace: $namespace"
-                    kubectl patch ingresscontrollers.operator.openshift.io "$name" "$flag" "$namespace" \
-                        -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-                    kubectl delete ingresscontrollers.operator.openshift.io "$name" "$flag" "$namespace" --ignore-not-found=true --timeout=30s 2>&1 || true
-                done
-
-            # Wait a bit
-            sleep 5
-        fi
-    fi
-
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would delete CRD: ingresscontrollers.operator.openshift.io"
     else
         log INFO "Deleting CRD: ingresscontrollers.operator.openshift.io"
-        # Remove finalizers from CRD if present
         kubectl patch crd ingresscontrollers.operator.openshift.io \
             -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-
-        if kubectl delete crd ingresscontrollers.operator.openshift.io --timeout=60s 2>&1; then
+        if kubectl delete crd ingresscontrollers.operator.openshift.io --ignore-not-found=true --timeout=60s 2>&1; then
             log SUCCESS "Deleted CRD: ingresscontrollers.operator.openshift.io"
         else
             log WARN "Failed to delete CRD: ingresscontrollers.operator.openshift.io"
@@ -109,26 +85,19 @@ else
     log INFO "CRD 'ingresscontrollers.operator.openshift.io' not found (already deleted)"
 fi
 
-# Step 4: Delete the openshift-ingress-operator namespace if empty
-log STEP "Step 3: Checking namespace: openshift-ingress-operator"
+# Step 4: Delete the openshift-ingress-operator namespace
+log STEP "Step 4: Deleting namespace: openshift-ingress-operator"
 
 if kubectl get namespace openshift-ingress-operator > /dev/null 2>&1; then
-    # Check if namespace has any resources left (simple check)
-    resource_count=$(kubectl get all -n openshift-ingress-operator --no-headers 2>/dev/null | wc -l || echo "0")
-
-    if [[ "$resource_count" -eq 0 ]]; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log INFO "[DRY RUN] Would delete empty namespace: openshift-ingress-operator"
-        else
-            log STEP "Deleting empty namespace: openshift-ingress-operator"
-            if kubectl delete namespace openshift-ingress-operator --timeout=60s 2>&1; then
-                log SUCCESS "Namespace deleted: openshift-ingress-operator"
-            else
-                log WARN "Failed to delete namespace: openshift-ingress-operator"
-            fi
-        fi
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY RUN] Would delete namespace: openshift-ingress-operator"
     else
-        log INFO "Namespace openshift-ingress-operator still has $resource_count resources, skipping deletion"
+        kubectl delete all --all -n openshift-ingress-operator --timeout=60s 2>&1 || true
+        if kubectl delete namespace openshift-ingress-operator --timeout=60s 2>&1; then
+            log SUCCESS "Namespace deleted: openshift-ingress-operator"
+        else
+            log WARN "Failed to delete namespace: openshift-ingress-operator"
+        fi
     fi
 else
     log INFO "Namespace 'openshift-ingress-operator' not found (already deleted)"
