@@ -28,10 +28,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	resourcegroupworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/resourcegroup"
+	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/cmd/workflow/shared"
 	cleanuprunner "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
-	resourcegroupworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/workflow/resourcegroup"
-	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/workflow/shared"
 )
 
 // WorkflowMode selects which cleanup workflow implementation to run.
