@@ -14,7 +14,7 @@ resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' exis
   name: clusterServiceManagedIdentityName
 }
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-04-02-preview' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-preview' existing = {
   name: clusterName
 }
 
