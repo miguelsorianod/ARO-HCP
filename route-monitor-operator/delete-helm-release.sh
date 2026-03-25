@@ -59,7 +59,8 @@ log STEP "Checking namespace: $NAMESPACE"
 
 if kubectl get namespace "$NAMESPACE" > /dev/null 2>&1; then
     # Check if namespace has any resources left
-    resource_count=$(kubectl get all -n "$NAMESPACE" 2>/dev/null | grep -v "^NAME" | wc -l || echo "0")
+    resource_count=$(kubectl get all -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d '[:space:]')
+    resource_count="${resource_count:-0}"
 
     if [[ "$resource_count" -eq 0 ]]; then
         if [[ "$DRY_RUN" == "true" ]]; then
