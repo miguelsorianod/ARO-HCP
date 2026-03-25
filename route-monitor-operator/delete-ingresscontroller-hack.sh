@@ -36,16 +36,16 @@ log() {
 # Step 1: Delete the "default" IngressController CR
 log STEP "Step 1: Deleting IngressController CR 'default'"
 
-if kubectl get ingresscontroller default -n openshift-ingress-operator > /dev/null 2>&1; then
+if kubectl get ingresscontrollers.operator.openshift.io default -n openshift-ingress-operator > /dev/null 2>&1; then
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would delete IngressController: default"
     else
         log INFO "Deleting IngressController: default"
         # Remove finalizers if present to ensure clean deletion
-        kubectl patch ingresscontroller default -n openshift-ingress-operator \
+        kubectl patch ingresscontrollers.operator.openshift.io default -n openshift-ingress-operator \
             -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
 
-        if kubectl delete ingresscontroller default -n openshift-ingress-operator --timeout=60s 2>&1; then
+        if kubectl delete ingresscontrollers.operator.openshift.io default -n openshift-ingress-operator --timeout=60s 2>&1; then
             log SUCCESS "Deleted IngressController: default"
         else
             log WARN "Failed to delete IngressController: default (may already be gone)"
@@ -59,7 +59,7 @@ fi
 if [[ "$DRY_RUN" != "true" ]]; then
     log INFO "Waiting for IngressController to be fully deleted..."
     timeout=30
-    while kubectl get ingresscontroller default -n openshift-ingress-operator > /dev/null 2>&1 && [[ $timeout -gt 0 ]]; do
+    while kubectl get ingresscontrollers.operator.openshift.io default -n openshift-ingress-operator > /dev/null 2>&1 && [[ $timeout -gt 0 ]]; do
         sleep 2
         ((timeout-=2))
     done
@@ -81,9 +81,9 @@ if kubectl get crd ingresscontrollers.operator.openshift.io > /dev/null 2>&1; th
                 jq -r '.items[] | "\(.metadata.name) -n \(.metadata.namespace)"' | \
                 while read -r name flag namespace; do
                     log INFO "Deleting IngressController: $name in namespace: $namespace"
-                    kubectl patch ingresscontroller "$name" "$flag" "$namespace" \
+                    kubectl patch ingresscontrollers.operator.openshift.io "$name" "$flag" "$namespace" \
                         -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-                    kubectl delete ingresscontroller "$name" "$flag" "$namespace" --ignore-not-found=true --timeout=30s 2>&1 || true
+                    kubectl delete ingresscontrollers.operator.openshift.io "$name" "$flag" "$namespace" --ignore-not-found=true --timeout=30s 2>&1 || true
                 done
 
             # Wait a bit
