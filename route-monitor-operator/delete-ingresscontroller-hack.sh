@@ -14,9 +14,9 @@ set -o pipefail
 
 DRY_RUN="${DRY_RUN:-false}"
 
-echo "🧹 Starting cleanup of RMO IngressController hack"
+echo "Starting cleanup of RMO IngressController hack"
 if [[ "$DRY_RUN" == "true" ]]; then
-    echo "🔍 DRY RUN MODE - No resources will actually be deleted"
+    echo "DRY RUN MODE - No resources will actually be deleted"
 fi
 
 # Function to log actions

@@ -11,9 +11,9 @@ set -o pipefail
 
 DRY_RUN="${DRY_RUN:-false}"
 
-echo "🧹 Starting cleanup of RMO custom resources"
+echo "Starting cleanup of RMO custom resources"
 if [[ "$DRY_RUN" == "true" ]]; then
-    echo "🔍 DRY RUN MODE - No resources will actually be deleted"
+    echo "DRY RUN MODE - No resources will actually be deleted"
 fi
 
 # Function to log actions
@@ -93,18 +93,13 @@ safe_delete "servicemonitors.monitoring.rhobs" "" "ServiceMonitor (monitoring.rh
 # Step 4: Wait for resources to be fully deleted
 if [[ "$DRY_RUN" != "true" ]]; then
     log INFO "Waiting for resources to be fully deleted..."
-    sleep 5
-
-    # Verify deletion
-    remaining_clusterurl=$(kubectl get clusterurlmonitors.monitoring.openshift.io --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
-    remaining_route=$(kubectl get routemonitors.monitoring.openshift.io --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
-    remaining_svcmon=$(kubectl get servicemonitors.monitoring.rhobs --all-namespaces -o name 2>/dev/null | wc -l || echo "0")
-
-    if [[ "$remaining_clusterurl" -eq 0 ]] && [[ "$remaining_route" -eq 0 ]] && [[ "$remaining_svcmon" -eq 0 ]]; then
-        log SUCCESS "All custom resources have been deleted"
-    else
-        log WARN "$remaining_clusterurl ClusterUrlMonitor(s), $remaining_route RouteMonitor(s), and $remaining_svcmon ServiceMonitor(s) still remain"
-    fi
+    for crd in clusterurlmonitors.monitoring.openshift.io routemonitors.monitoring.openshift.io servicemonitors.monitoring.rhobs; do
+        if kubectl get crd "$crd" > /dev/null 2>&1; then
+            kubectl wait --for=delete "$crd" --all --all-namespaces --timeout=60s 2>/dev/null && \
+                log SUCCESS "All $crd instances deleted" || \
+                log WARN "Timed out waiting for $crd instances to be deleted"
+        fi
+    done
 fi
 
 log SUCCESS "RMO custom resources cleanup completed"

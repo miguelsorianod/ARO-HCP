@@ -13,9 +13,9 @@ DRY_RUN="${DRY_RUN:-false}"
 RELEASE_NAME="route-monitor-operator"
 NAMESPACE="openshift-route-monitor-operator"
 
-echo "🧹 Starting cleanup of RMO Helm release"
+echo "Starting cleanup of RMO Helm release"
 if [[ "$DRY_RUN" == "true" ]]; then
-    echo "🔍 DRY RUN MODE - No resources will actually be deleted"
+    echo "DRY RUN MODE - No resources will actually be deleted"
 fi
 
 # Function to log actions
@@ -54,27 +54,32 @@ else
     log INFO "Helm release not found: $RELEASE_NAME (may already be deleted)"
 fi
 
-# Step 2: Delete the namespace if it exists and is empty
+# Step 2: Delete the namespace and any remaining resources
 log STEP "Checking namespace: $NAMESPACE"
 
 if kubectl get namespace "$NAMESPACE" > /dev/null 2>&1; then
-    # Check if namespace has any resources left
+    # Delete all remaining resources in the namespace
     resource_count=$(kubectl get all -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d '[:space:]')
     resource_count="${resource_count:-0}"
 
-    if [[ "$resource_count" -eq 0 ]]; then
+    if [[ "$resource_count" -gt 0 ]]; then
         if [[ "$DRY_RUN" == "true" ]]; then
-            log INFO "[DRY RUN] Would delete empty namespace: $NAMESPACE"
+            log INFO "[DRY RUN] Would delete $resource_count remaining resources in namespace: $NAMESPACE"
         else
-            log STEP "Deleting empty namespace: $NAMESPACE"
-            if kubectl delete namespace "$NAMESPACE" --timeout=60s 2>&1; then
-                log SUCCESS "Namespace deleted: $NAMESPACE"
-            else
-                log WARN "Failed to delete namespace: $NAMESPACE (may still have resources)"
-            fi
+            log INFO "Deleting $resource_count remaining resources in namespace: $NAMESPACE"
+            kubectl delete all --all -n "$NAMESPACE" --timeout=60s 2>&1 || true
         fi
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY RUN] Would delete namespace: $NAMESPACE"
     else
-        log INFO "Namespace $NAMESPACE still has $resource_count resources, skipping deletion"
+        log STEP "Deleting namespace: $NAMESPACE"
+        if kubectl delete namespace "$NAMESPACE" --timeout=60s 2>&1; then
+            log SUCCESS "Namespace deleted: $NAMESPACE"
+        else
+            log WARN "Failed to delete namespace: $NAMESPACE"
+        fi
     fi
 else
     log INFO "Namespace not found: $NAMESPACE (may already be deleted)"
@@ -95,6 +100,7 @@ for crd in "${RMO_CRDS[@]}"; do
             log INFO "[DRY RUN] Would delete CRD: $crd"
         else
             log INFO "Deleting CRD: $crd"
+            kubectl patch crd "$crd" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
             if kubectl delete crd "$crd" --timeout=60s 2>&1; then
                 log SUCCESS "CRD deleted: $crd"
             else
