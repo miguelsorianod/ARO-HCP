@@ -21,10 +21,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
 )
 
 // ResourceType is the ARM resource type for resource groups.
@@ -34,6 +38,7 @@ const ResourceType = "Microsoft.Resources/resourceGroups"
 type DeleteStepConfig struct {
 	ResourceGroupName string
 	RGClient          *armresources.ResourceGroupsClient
+	LocksClient       *armlocks.ManagementLocksClient
 
 	Name            string
 	Retries         int
@@ -105,8 +110,21 @@ func (s *deleteStep) Verify(ctx context.Context) error {
 	return s.verify(ctx)
 }
 
-func (s *deleteStep) Discover(context.Context) ([]runner.Target, error) {
-	return []runner.Target{{Name: s.cfg.ResourceGroupName, Type: ResourceType}}, nil
+func (s *deleteStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	targets := []runner.Target{{Name: s.cfg.ResourceGroupName, Type: ResourceType}}
+	if s.cfg.LocksClient == nil {
+		return targets, nil
+	}
+	if !armhelpers.HasResourceGroupLocks(ctx, s.cfg.LocksClient, s.cfg.ResourceGroupName) {
+		return targets, nil
+	}
+
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	logger.Info("Skipping deletion target", "step", s.Name(), "resource", s.cfg.ResourceGroupName, "reason", "locked")
+	return nil, nil
 }
 
 func (s *deleteStep) Delete(ctx context.Context, target runner.Target, wait bool) error {

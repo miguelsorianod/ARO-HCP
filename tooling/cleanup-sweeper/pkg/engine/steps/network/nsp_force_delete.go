@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-logr/logr"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
@@ -117,10 +115,6 @@ func (s *nspForceDeleteStep) Verify(ctx context.Context) error {
 }
 
 func (s *nspForceDeleteStep) Discover(ctx context.Context) ([]runner.Target, error) {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		panic(err)
-	}
 	resources, err := armhelpers.ListByType(ctx, s.cfg.ResourcesClient, s.cfg.ResourceGroupName, NSPResourceType)
 	if err != nil {
 		return nil, err
@@ -136,15 +130,7 @@ func (s *nspForceDeleteStep) Discover(ctx context.Context) ([]runner.Target, err
 			Type: *resource.Type,
 		})
 	}
-	filtered := make([]runner.Target, 0, len(targets))
-	for _, target := range targets {
-		if armhelpers.HasLocks(ctx, s.cfg.LocksClient, target.ID) {
-			logger.Info("Skipping deletion target", "step", s.Name(), "resource", target.Name, "reason", "locked")
-			continue
-		}
-		filtered = append(filtered, target)
-	}
-	return filtered, nil
+	return armhelpers.FilterUnlockedTargets(ctx, s.cfg.LocksClient, s.Name(), targets), nil
 }
 
 func (s *nspForceDeleteStep) Delete(ctx context.Context, target runner.Target, wait bool) error {

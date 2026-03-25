@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
@@ -147,6 +148,7 @@ func validDeleteNSDelegationRecordsStepConfig() DeleteNSDelegationRecordsStepCon
 	return DeleteNSDelegationRecordsStepConfig{
 		ResourceGroupName: "rg",
 		Credential:        testCredential{},
+		LocksClient:       &armlocks.ManagementLocksClient{},
 		ResourcesClient:   &armresources.Client{},
 		SubsClient:        &armsubscriptions.Client{},
 	}

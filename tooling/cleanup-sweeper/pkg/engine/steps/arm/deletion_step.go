@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-logr/logr"
-
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
@@ -137,10 +135,6 @@ func (s *deletionStep) Verify(ctx context.Context) error {
 }
 
 func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
-	logger, err := logr.FromContext(ctx)
-	if err != nil {
-		panic(err)
-	}
 	targets := []runner.Target{}
 	seenByID := sets.New[string]()
 
@@ -159,11 +153,6 @@ func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
 			Type: *resource.Type,
 		}
 
-		if HasLocks(ctx, s.cfg.LocksClient, target.ID) {
-			logger.Info("Skipping deletion target", "step", s.Name(), "resource", target.Name, "reason", "locked")
-			return
-		}
-
 		targets = append(targets, target)
 	}
 
@@ -178,7 +167,7 @@ func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
 				appendTarget(resource)
 			}
 		}
-		return targets, nil
+		return FilterUnlockedTargets(ctx, s.cfg.LocksClient, s.Name(), targets), nil
 	}
 
 	excluded := sets.New[string]()
@@ -202,7 +191,7 @@ func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
 			appendTarget(resource)
 		}
 	}
-	return targets, nil
+	return FilterUnlockedTargets(ctx, s.cfg.LocksClient, s.Name(), targets), nil
 }
 
 func (s *deletionStep) Delete(ctx context.Context, target runner.Target, wait bool) error {

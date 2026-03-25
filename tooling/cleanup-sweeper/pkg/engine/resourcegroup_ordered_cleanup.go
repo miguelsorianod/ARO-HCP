@@ -223,6 +223,7 @@ func ResourceGroupOrderedCleanupWorkflow(
 			dnssteps.MustNewDeleteNSDelegationRecordsStep(dnssteps.DeleteNSDelegationRecordsStepConfig{
 				ResourceGroupName: resourceGroupName,
 				Credential:        credential,
+				LocksClient:       locksClient,
 				ResourcesClient:   resourcesClient,
 				SubsClient:        subsClient,
 				Name:              "Delete parent NS delegations",
@@ -336,6 +337,7 @@ func ResourceGroupOrderedCleanupWorkflow(
 			rgsteps.MustNewDeleteStep(rgsteps.DeleteStepConfig{
 				ResourceGroupName: resourceGroupName,
 				RGClient:          rgClient,
+				LocksClient:       locksClient,
 				Retries:           5,
 				ContinueOnError:   true,
 			}),

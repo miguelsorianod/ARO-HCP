@@ -18,9 +18,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
 // ListByType lists all resources of a specific type in a resource group.
@@ -77,6 +81,44 @@ func HasLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, 
 		}
 	}
 	return false
+}
+
+// HasResourceGroupLocks reports whether a resource group has management locks.
+func HasResourceGroupLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, resourceGroupName string) bool {
+	pager := locksClient.NewListAtResourceGroupLevelPager(resourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return false
+		}
+		if len(page.Value) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterUnlockedTargets filters out lock-protected targets and logs skips.
+func FilterUnlockedTargets(
+	ctx context.Context,
+	locksClient *armlocks.ManagementLocksClient,
+	stepName string,
+	targets []runner.Target,
+) []runner.Target {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	filtered := make([]runner.Target, 0, len(targets))
+	for _, target := range targets {
+		if HasLocks(ctx, locksClient, target.ID) {
+			logger.Info("Skipping deletion target", "step", stepName, "resource", target.Name, "reason", "locked")
+			continue
+		}
+		filtered = append(filtered, target)
+	}
+	return filtered
 }
 
 // DeleteByID deletes a resource by ARM resource ID and API version.

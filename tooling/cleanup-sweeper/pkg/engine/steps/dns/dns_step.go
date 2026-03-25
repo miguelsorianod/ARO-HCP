@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
@@ -42,6 +43,7 @@ const NSRecordSetResourceType = "Microsoft.Network/dnszones/NS"
 type DeleteNSDelegationRecordsStepConfig struct {
 	ResourceGroupName string
 	Credential        azcore.TokenCredential
+	LocksClient       *armlocks.ManagementLocksClient
 	ResourcesClient   *armresources.Client
 	SubsClient        *armsubscriptions.Client
 
@@ -68,6 +70,9 @@ func NewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) (
 	}
 	if cfg.Credential == nil {
 		return nil, fmt.Errorf("azure credential is required")
+	}
+	if cfg.LocksClient == nil {
+		return nil, fmt.Errorf("management locks client is required")
 	}
 	if cfg.ResourcesClient == nil {
 		return nil, fmt.Errorf("resources client is required")
@@ -152,7 +157,7 @@ func (s *deleteNSDelegationRecordsStep) Discover(ctx context.Context) ([]runner.
 		}
 		targets = append(targets, delegationTargets...)
 	}
-	return targets, nil
+	return armhelpers.FilterUnlockedTargets(ctx, s.cfg.LocksClient, s.Name(), targets), nil
 }
 
 func (s *deleteNSDelegationRecordsStep) Delete(ctx context.Context, target runner.Target, _ bool) error {
