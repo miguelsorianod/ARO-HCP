@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	// load all the prometheus client-go metrics
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,6 +31,8 @@ import (
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	// load all the prometheus client-go metrics
+	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -154,7 +155,7 @@ func (b *Backend) Run(ctx context.Context) error {
 
 	// Handle requests directly for /healthz endpoint
 	if b.options.HealthzServerListenAddress != "" {
-		backendHealthGauge := promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
+		backendHealthGauge := promauto.With(legacyregistry.Registerer()).NewGauge(prometheus.GaugeOpts{Name: "backend_health", Help: "backend_health is 1 when healthy"})
 
 		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 
@@ -180,9 +181,9 @@ func (b *Backend) Run(ctx context.Context) error {
 
 	if b.options.MetricsServerListenAddress != "" {
 		http.Handle("/metrics", promhttp.InstrumentMetricHandler(
-			prometheus.DefaultRegisterer,
+			legacyregistry.Registerer(),
 			promhttp.HandlerFor(
-				prometheus.DefaultGatherer,
+				prometheus.Gatherers{legacyregistry.DefaultGatherer},
 				promhttp.HandlerOpts{},
 			),
 		))

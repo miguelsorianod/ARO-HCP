@@ -17,11 +17,13 @@ package controllerutils
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"k8s.io/component-base/metrics/legacyregistry"
 )
 
 var (
 	// ReconcileTotal counts the total number of reconciliations per controller.
-	ReconcileTotal = promauto.NewCounterVec(
+	ReconcileTotal = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "backend_controller_reconcile_total",
 			Help: "Total number of reconciliations per controller.",
