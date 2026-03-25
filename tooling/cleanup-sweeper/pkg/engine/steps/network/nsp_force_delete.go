@@ -30,8 +30,10 @@ import (
 	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
 )
 
+// NSPResourceType is the ARM resource type for network security perimeters.
 const NSPResourceType = "Microsoft.Network/networkSecurityPerimeters"
 
+// NSPForceDeleteStepConfig configures force deletion of NSP resources.
 type NSPForceDeleteStepConfig struct {
 	ResourceGroupName string
 	ResourcesClient   *armresources.Client
@@ -54,6 +56,7 @@ type nspForceDeleteStep struct {
 
 var _ runner.Step = (*nspForceDeleteStep)(nil)
 
+// NewNSPForceDeleteStep builds the NSP force-delete step.
 func NewNSPForceDeleteStep(cfg NSPForceDeleteStepConfig) (runner.Step, error) {
 	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
 		return nil, fmt.Errorf("resource group name is required")
@@ -82,6 +85,7 @@ func NewNSPForceDeleteStep(cfg NSPForceDeleteStepConfig) (runner.Step, error) {
 	}, nil
 }
 
+// MustNewNSPForceDeleteStep builds the step and panics on invalid config.
 func MustNewNSPForceDeleteStep(cfg NSPForceDeleteStepConfig) runner.Step {
 	step, err := NewNSPForceDeleteStep(cfg)
 	if err != nil {

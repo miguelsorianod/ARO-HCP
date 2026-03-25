@@ -36,6 +36,7 @@ import (
 )
 
 const (
+	// ResourceType is the ARM resource type for role assignments.
 	ResourceType              = "Microsoft.Authorization/roleAssignments"
 	unknownObjectTypeValue    = "Unknown"
 	graphScope                = "https://graph.microsoft.com/.default"
@@ -44,6 +45,7 @@ const (
 	preflightFailureMessage   = "Refusing to run cleanup: directory visibility is insufficient. This tool must be run with directory read permissions (e.g. Directory.Read.All)."
 )
 
+// DeleteOrphanedStepConfig configures orphaned role-assignment cleanup.
 type DeleteOrphanedStepConfig struct {
 	RoleAssignmentsClient *armauthorization.RoleAssignmentsClient
 	AzureCredential       azcore.TokenCredential
@@ -65,6 +67,7 @@ type deleteOrphanedStep struct {
 
 var _ runner.Step = (*deleteOrphanedStep)(nil)
 
+// NewDeleteOrphanedStep builds the orphaned role-assignment deletion step.
 func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) (runner.Step, error) {
 	if cfg.RoleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")
@@ -90,6 +93,7 @@ func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) (runner.Step, error) {
 	}, nil
 }
 
+// MustNewDeleteOrphanedStep builds the step and panics on invalid config.
 func MustNewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) runner.Step {
 	step, err := NewDeleteOrphanedStep(cfg)
 	if err != nil {

@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
 )
 
+// VerifyPrivateDNSZonesDeleted verifies that private DNS zones are fully removed.
 func VerifyPrivateDNSZonesDeleted(ctx context.Context, client *armresources.Client, resourceGroupName string) error {
 	remainingResources, err := arm.ListByType(ctx, client, resourceGroupName, "Microsoft.Network/privateDnsZones")
 	if err != nil {

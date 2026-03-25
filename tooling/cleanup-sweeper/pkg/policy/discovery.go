@@ -24,11 +24,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
+// RGSelectionReason explains why a resource group was selected or skipped.
 type RGSelectionReason struct {
 	Code string           `json:"code,omitempty"`
 	Rule *RGSelectionRule `json:"rule,omitempty"`
 }
 
+// RGSelectionRule captures the matched rule metadata.
 type RGSelectionRule struct {
 	Index  int               `json:"index"`
 	Name   string            `json:"name,omitempty"`
@@ -36,6 +38,7 @@ type RGSelectionRule struct {
 	Result string            `json:"result,omitempty"`
 }
 
+// String returns a compact machine-readable reason label.
 func (r RGSelectionReason) String() string {
 	if r.Rule == nil {
 		return strings.TrimSpace(r.Code)
@@ -46,6 +49,7 @@ func (r RGSelectionReason) String() string {
 	return fmt.Sprintf("rule[%d]-%s", r.Rule.Index, strings.TrimSpace(r.Rule.Result))
 }
 
+// SourceDescription returns a human-readable source summary for logs.
 func (r RGSelectionReason) SourceDescription() string {
 	if r.Rule == nil {
 		normalizedCode := strings.TrimSpace(r.Code)
@@ -86,6 +90,7 @@ func newRGSelectionRuleReason(ruleIndex int, rule RGDiscoveryRule, ruleResult st
 	}
 }
 
+// SelectsResourceGroup evaluates discovery rules for a resource group.
 func (p *RGDiscoveryPolicy) SelectsResourceGroup(
 	rg *armresources.ResourceGroup,
 	excludedResourceGroups sets.Set[string],
@@ -139,6 +144,7 @@ func (p *RGDiscoveryPolicy) SelectsResourceGroup(
 	return false, newRGSelectionReason("no-rule-match")
 }
 
+// MatchesResourceGroup evaluates match criteria against a resource-group name.
 func (m RGDiscoveryMatch) MatchesResourceGroup(resourceGroupName string) bool {
 	if m.Any {
 		return true
@@ -149,6 +155,7 @@ func (m RGDiscoveryMatch) MatchesResourceGroup(resourceGroupName string) bool {
 	return strings.HasPrefix(resourceGroupName, m.NamePrefix)
 }
 
+// MatchesResourceGroup evaluates additional condition predicates.
 func (c RGDiscoveryConditions) MatchesResourceGroup(rg *armresources.ResourceGroup) bool {
 	if rg == nil {
 		return false

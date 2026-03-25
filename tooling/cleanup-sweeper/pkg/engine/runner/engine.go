@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,16 +27,21 @@ import (
 )
 
 const (
+	// DefaultParallelism is used when Engine.Parallelism is not set.
 	DefaultParallelism = 8
-	DefaultRetries     = 1
+	// DefaultRetries is the minimum retry count for retryable operations.
+	DefaultRetries = 1
 )
 
+// Target represents a discovered resource selected for deletion.
 type Target struct {
 	ID   string
 	Name string
 	Type string
 }
 
+// Step defines one ordered cleanup stage in the engine execution model.
+// Each step is responsible for discovery, per-target deletion, and verification.
 type Step interface {
 	Name() string
 	Discover(ctx context.Context) ([]Target, error)
@@ -49,8 +54,10 @@ type Step interface {
 	ContinueOnError() bool
 }
 
+// VerifyFn is an optional verification callback used by concrete step types.
 type VerifyFn func(ctx context.Context) error
 
+// Engine executes cleanup steps in order with bounded per-step parallelism.
 type Engine struct {
 	Steps       []Step
 	Parallelism int
@@ -59,6 +66,7 @@ type Engine struct {
 	PostRunFn   func(ctx context.Context) error
 }
 
+// Run executes all configured steps in order and then executes PostRunFn if set.
 func (e *Engine) Run(ctx context.Context) error {
 	parallelism := e.Parallelism
 	if parallelism < 1 {

@@ -32,9 +32,13 @@ import (
 	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
 )
 
+// DNSZonesResourceType is the ARM resource type for DNS zones.
 const DNSZonesResourceType = "Microsoft.Network/dnszones"
+
+// NSRecordSetResourceType is the ARM resource type for NS record sets.
 const NSRecordSetResourceType = "Microsoft.Network/dnszones/NS"
 
+// DeleteNSDelegationRecordsStepConfig configures NS delegation cleanup.
 type DeleteNSDelegationRecordsStepConfig struct {
 	ResourceGroupName string
 	Credential        azcore.TokenCredential
@@ -57,6 +61,7 @@ type deleteNSDelegationRecordsStep struct {
 
 var _ runner.Step = (*deleteNSDelegationRecordsStep)(nil)
 
+// NewDeleteNSDelegationRecordsStep builds the NS delegation cleanup step.
 func NewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) (runner.Step, error) {
 	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
 		return nil, fmt.Errorf("resource group name is required")
@@ -85,6 +90,7 @@ func NewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) (
 	}, nil
 }
 
+// MustNewDeleteNSDelegationRecordsStep builds the step and panics on invalid config.
 func MustNewDeleteNSDelegationRecordsStep(cfg DeleteNSDelegationRecordsStepConfig) runner.Step {
 	step, err := NewDeleteNSDelegationRecordsStep(cfg)
 	if err != nil {

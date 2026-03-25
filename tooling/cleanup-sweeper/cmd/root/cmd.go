@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewCommand builds the root cleanup-sweeper cobra command.
 func NewCommand() (*cobra.Command, error) {
 	opts := DefaultOptions()
 	cmd := &cobra.Command{

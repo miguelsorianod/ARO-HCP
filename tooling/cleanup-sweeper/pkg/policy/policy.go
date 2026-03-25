@@ -22,26 +22,33 @@ import (
 	"time"
 )
 
+// Policy is the top-level cleanup-sweeper policy document.
 type Policy struct {
 	RGOrdered RGOrderedPolicy `json:"rgOrdered" yaml:"rgOrdered"`
 }
 
+// RGOrderedPolicy configures ordered cleanup candidate discovery and exclusions.
 type RGOrderedPolicy struct {
 	ExcludedResourceGroups []string          `json:"excludedResourceGroups" yaml:"excludedResourceGroups"`
 	Discovery              RGDiscoveryPolicy `json:"discovery" yaml:"discovery"`
 }
 
+// RGDiscoveryPolicy contains first-match-wins discovery rules.
 type RGDiscoveryPolicy struct {
 	Rules []RGDiscoveryRule `json:"rules" yaml:"rules"`
 }
 
+// RGDiscoveryAction is the action a discovery rule takes on match.
 type RGDiscoveryAction string
 
 const (
+	// RGDiscoveryActionDelete marks matching resource groups for deletion.
 	RGDiscoveryActionDelete RGDiscoveryAction = "delete"
-	RGDiscoveryActionSkip   RGDiscoveryAction = "skip"
+	// RGDiscoveryActionSkip excludes matching resource groups from deletion.
+	RGDiscoveryActionSkip RGDiscoveryAction = "skip"
 )
 
+// RGDiscoveryRule defines one ordered discovery rule.
 type RGDiscoveryRule struct {
 	Name       string                `json:"name,omitempty" yaml:"name,omitempty"`
 	Action     RGDiscoveryAction     `json:"action" yaml:"action"`
@@ -50,12 +57,14 @@ type RGDiscoveryRule struct {
 	OlderThan  time.Duration         `json:"olderThan,omitempty" yaml:"olderThan,omitempty"`
 }
 
+// RGDiscoveryMatch defines how a rule matches resource groups.
 type RGDiscoveryMatch struct {
 	Any        bool           `json:"any,omitempty" yaml:"any,omitempty"`
 	NamePrefix string         `json:"namePrefix,omitempty" yaml:"namePrefix,omitempty"`
 	NameRegex  *regexp.Regexp `json:"nameRegex,omitempty" yaml:"nameRegex,omitempty"`
 }
 
+// RGDiscoveryConditions defines additional rule predicates.
 type RGDiscoveryConditions struct {
 	ManagedBySet *bool             `json:"managedBySet,omitempty" yaml:"managedBySet,omitempty"`
 	TagsEq       map[string]string `json:"tagsEq,omitempty" yaml:"tagsEq,omitempty"`
@@ -76,6 +85,7 @@ type rgDiscoveryMatchWireFormat struct {
 	NameRegex  string `json:"nameRegex,omitempty"`
 }
 
+// MarshalJSON serializes RGDiscoveryRule using duration strings.
 func (r RGDiscoveryRule) MarshalJSON() ([]byte, error) {
 	wire := rgDiscoveryRuleWireFormat{
 		Name:       r.Name,
@@ -89,6 +99,7 @@ func (r RGDiscoveryRule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
+// UnmarshalJSON parses RGDiscoveryRule from wire format.
 func (r *RGDiscoveryRule) UnmarshalJSON(data []byte) error {
 	var wire rgDiscoveryRuleWireFormat
 	if err := json.Unmarshal(data, &wire); err != nil {
@@ -113,6 +124,7 @@ func (r *RGDiscoveryRule) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON serializes RGDiscoveryMatch with regex strings.
 func (m RGDiscoveryMatch) MarshalJSON() ([]byte, error) {
 	wire := rgDiscoveryMatchWireFormat{
 		Any:        m.Any,
@@ -124,6 +136,7 @@ func (m RGDiscoveryMatch) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
+// UnmarshalJSON parses RGDiscoveryMatch from wire format.
 func (m *RGDiscoveryMatch) UnmarshalJSON(data []byte) error {
 	var wire rgDiscoveryMatchWireFormat
 	if err := json.Unmarshal(data, &wire); err != nil {

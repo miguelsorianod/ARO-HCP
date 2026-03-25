@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Load reads and parses a policy file from disk.
 func Load(path string) (*Policy, error) {
 	if path == "" {
 		return nil, fmt.Errorf("policy path is required")

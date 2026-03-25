@@ -31,6 +31,7 @@ type APIVersionCache struct {
 	cache           map[string]string
 }
 
+// NewAPIVersionCache creates an empty API-version cache.
 func NewAPIVersionCache(providersClient *armresources.ProvidersClient) *APIVersionCache {
 	return &APIVersionCache{
 		providersClient: providersClient,
@@ -38,6 +39,7 @@ func NewAPIVersionCache(providersClient *armresources.ProvidersClient) *APIVersi
 	}
 }
 
+// Get returns an API version for the given ARM resource type.
 func (c *APIVersionCache) Get(ctx context.Context, resourceType string) (string, error) {
 	normalizedResourceType := normalizeResourceType(resourceType)
 	if normalizedResourceType == "" {
@@ -72,6 +74,7 @@ func (c *APIVersionCache) Get(ctx context.Context, resourceType string) (string,
 	return resolvedAPIVersion, nil
 }
 
+// Set stores a resource type to API version mapping in the cache.
 func (c *APIVersionCache) Set(resourceType, apiVersion string) {
 	normalizedResourceType := normalizeResourceType(resourceType)
 	trimmedAPIVersion := strings.TrimSpace(apiVersion)

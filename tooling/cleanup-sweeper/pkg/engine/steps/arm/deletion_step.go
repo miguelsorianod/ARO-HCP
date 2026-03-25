@@ -29,11 +29,13 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
+// ResourceSelector defines inclusion or exclusion resource-type filters.
 type ResourceSelector struct {
 	IncludedResourceTypes []string
 	ExcludedResourceTypes []string
 }
 
+// DeletionStepConfig configures the generic ARM deletion step.
 type DeletionStepConfig struct {
 	ResourceGroupName string
 	Client            *armresources.Client
@@ -59,6 +61,7 @@ type deletionStep struct {
 
 var _ runner.Step = (*deletionStep)(nil)
 
+// NewDeletionStep builds a generic ARM resource deletion step.
 func NewDeletionStep(cfg DeletionStepConfig) (runner.Step, error) {
 	selector := cfg.Selector
 	hasIncluded := len(selector.IncludedResourceTypes) > 0
@@ -102,6 +105,7 @@ func NewDeletionStep(cfg DeletionStepConfig) (runner.Step, error) {
 	}, nil
 }
 
+// MustNewDeletionStep builds a deletion step and panics on invalid config.
 func MustNewDeletionStep(cfg DeletionStepConfig) runner.Step {
 	step, err := NewDeletionStep(cfg)
 	if err != nil {

@@ -46,13 +46,15 @@ const (
 	vnetLinkMaxRetries        = 3 // VNet links can have timing issues
 )
 
+// WorkflowOptions controls runner behavior for cleanup workflows.
 type WorkflowOptions struct {
 	Wait        bool
 	DryRun      bool
 	Parallelism int
 }
 
-// execute performs ordered resource deletion following the delete.sh logic.
+// ResourceGroupOrderedCleanupWorkflow builds an ordered cleanup workflow for a
+// single resource group, following the historical delete.sh behavior.
 //
 // Deletes all resources in a resource group except those with locks.
 // Handles dependencies by deleting resources in the proper order:

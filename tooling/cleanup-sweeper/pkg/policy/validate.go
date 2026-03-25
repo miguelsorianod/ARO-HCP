@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+// Validate validates the full policy.
 func (p *Policy) Validate() error {
 	if p == nil {
 		return fmt.Errorf("policy is required")
@@ -31,11 +32,13 @@ func (p *Policy) Validate() error {
 	return nil
 }
 
+// Validate validates ordered cleanup policy sections.
 func (p *RGOrderedPolicy) Validate(fieldPrefix string) error {
 	p.ExcludedResourceGroups = normalizeStringSetLower(p.ExcludedResourceGroups)
 	return p.Discovery.Validate(fieldPrefix + ".discovery")
 }
 
+// Validate validates discovery rule configuration.
 func (p *RGDiscoveryPolicy) Validate(fieldPrefix string) error {
 	if len(p.Rules) == 0 {
 		return fmt.Errorf("%s.rules: must define at least one discovery rule", fieldPrefix)
@@ -49,6 +52,7 @@ func (p *RGDiscoveryPolicy) Validate(fieldPrefix string) error {
 	return nil
 }
 
+// Validate validates one discovery rule.
 func (r *RGDiscoveryRule) Validate(fieldPrefix string) error {
 	r.Name = strings.TrimSpace(r.Name)
 	if err := r.Match.Validate(fieldPrefix + ".match"); err != nil {
@@ -74,6 +78,7 @@ func (r *RGDiscoveryRule) Validate(fieldPrefix string) error {
 	return nil
 }
 
+// Validate validates rule match shape.
 func (m *RGDiscoveryMatch) Validate(fieldPrefix string) error {
 	m.NamePrefix = strings.TrimSpace(m.NamePrefix)
 
@@ -93,6 +98,7 @@ func (m *RGDiscoveryMatch) Validate(fieldPrefix string) error {
 	return nil
 }
 
+// Validate validates rule condition predicates.
 func (c *RGDiscoveryConditions) Validate(fieldPrefix string) error {
 	tagsEq, err := normalizeTagMap(c.TagsEq, fieldPrefix+".tagsEq")
 	if err != nil {

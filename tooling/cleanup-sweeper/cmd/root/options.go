@@ -34,13 +34,17 @@ import (
 	sharedworkflow "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/workflow/shared"
 )
 
+// WorkflowMode selects which cleanup workflow implementation to run.
 type WorkflowMode string
 
 const (
-	WorkflowRGOrdered       WorkflowMode = "rg-ordered"
+	// WorkflowRGOrdered runs ordered per-resource-group cleanup.
+	WorkflowRGOrdered WorkflowMode = "rg-ordered"
+	// WorkflowSharedLeftovers runs cleanup for shared leftovers.
 	WorkflowSharedLeftovers WorkflowMode = "shared-leftovers"
 )
 
+// DefaultOptions returns the default CLI options.
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		Workflow:    string(WorkflowRGOrdered),
@@ -49,6 +53,7 @@ func DefaultOptions() *RawOptions {
 	}
 }
 
+// BindOptions binds CLI flags into RawOptions.
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Subscription ID to clean.")
 	cmd.Flags().StringVar(&opts.PolicyFile, "policy", opts.PolicyFile, "Path to sweeper policy file (required for rg-ordered workflow).")
@@ -63,6 +68,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	return nil
 }
 
+// RawOptions contains CLI flags before validation and normalization.
 type RawOptions struct {
 	SubscriptionID string
 	PolicyFile     string
@@ -82,6 +88,7 @@ type validatedOptions struct {
 	policy   *policy.Policy
 }
 
+// ValidatedOptions wraps options that passed validation.
 type ValidatedOptions struct {
 	*validatedOptions
 }
@@ -103,10 +110,12 @@ type completedOptions struct {
 	ResourceGroups sets.Set[string]
 }
 
+// Options contains completed runtime options after validation and completion.
 type Options struct {
 	*completedOptions
 }
 
+// Validate validates and normalizes raw CLI options.
 func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
 	if o.SubscriptionID == "" {
 		return nil, fmt.Errorf("--subscription-id is required")
@@ -152,6 +161,7 @@ func (o *RawOptions) Validate(_ context.Context) (*ValidatedOptions, error) {
 	}, nil
 }
 
+// Complete resolves validated options into runtime dependencies.
 func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 	subscriptionID := strings.TrimSpace(o.SubscriptionID)
 	policyFile := strings.TrimSpace(o.PolicyFile)
@@ -180,6 +190,7 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 	}, nil
 }
 
+// Run executes the selected cleanup workflow.
 func (o *Options) Run(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {

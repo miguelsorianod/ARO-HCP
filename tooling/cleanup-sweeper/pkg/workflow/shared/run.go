@@ -25,6 +25,7 @@ import (
 	cleanupengine "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine"
 )
 
+// RunOptions configures shared-leftovers workflow execution.
 type RunOptions struct {
 	SubscriptionID  string
 	AzureCredential azcore.TokenCredential
@@ -34,6 +35,7 @@ type RunOptions struct {
 	Parallelism int
 }
 
+// Run executes the shared-leftovers workflow.
 func Run(ctx context.Context, opts RunOptions) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {

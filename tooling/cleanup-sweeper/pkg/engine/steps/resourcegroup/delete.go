@@ -27,8 +27,10 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
+// ResourceType is the ARM resource type for resource groups.
 const ResourceType = "Microsoft.Resources/resourceGroups"
 
+// DeleteStepConfig configures resource-group deletion.
 type DeleteStepConfig struct {
 	ResourceGroupName string
 	RGClient          *armresources.ResourceGroupsClient
@@ -49,6 +51,7 @@ type deleteStep struct {
 
 var _ runner.Step = (*deleteStep)(nil)
 
+// NewDeleteStep builds the resource-group deletion step.
 func NewDeleteStep(cfg DeleteStepConfig) (runner.Step, error) {
 	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
 		return nil, fmt.Errorf("resource group name is required")
@@ -71,6 +74,7 @@ func NewDeleteStep(cfg DeleteStepConfig) (runner.Step, error) {
 	}, nil
 }
 
+// MustNewDeleteStep builds the step and panics on invalid config.
 func MustNewDeleteStep(cfg DeleteStepConfig) runner.Step {
 	step, err := NewDeleteStep(cfg)
 	if err != nil {

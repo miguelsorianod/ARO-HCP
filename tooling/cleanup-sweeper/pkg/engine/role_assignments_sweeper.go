@@ -28,6 +28,7 @@ import (
 
 const orphanedRoleAssignmentStepRetries = 3
 
+// RoleAssignmentsSweeperWorkflow builds the shared-leftovers cleanup workflow.
 func RoleAssignmentsSweeperWorkflow(
 	_ context.Context,
 	subscriptionID string,

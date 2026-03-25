@@ -27,8 +27,10 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 )
 
+// DeletedVaultsResourceType is the ARM resource type for deleted Key Vaults.
 const DeletedVaultsResourceType = "Microsoft.KeyVault/deletedVaults"
 
+// PurgeDeletedStepConfig configures deleted Key Vault purge behavior.
 type PurgeDeletedStepConfig struct {
 	ResourceGroupName string
 	VaultsClient      *armkeyvault.VaultsClient
@@ -50,6 +52,7 @@ type purgeDeletedStep struct {
 
 var _ runner.Step = (*purgeDeletedStep)(nil)
 
+// NewPurgeDeletedStep builds the deleted Key Vault purge step.
 func NewPurgeDeletedStep(cfg PurgeDeletedStepConfig) (runner.Step, error) {
 	if strings.TrimSpace(cfg.ResourceGroupName) == "" {
 		return nil, fmt.Errorf("resource group name is required")
@@ -73,6 +76,7 @@ func NewPurgeDeletedStep(cfg PurgeDeletedStepConfig) (runner.Step, error) {
 	}, nil
 }
 
+// MustNewPurgeDeletedStep builds the step and panics on invalid config.
 func MustNewPurgeDeletedStep(cfg PurgeDeletedStepConfig) runner.Step {
 	step, err := NewPurgeDeletedStep(cfg)
 	if err != nil {

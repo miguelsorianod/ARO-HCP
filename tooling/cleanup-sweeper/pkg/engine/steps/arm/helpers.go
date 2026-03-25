@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
+// ListByType lists all resources of a specific type in a resource group.
 func ListByType(
 	ctx context.Context,
 	client *armresources.Client,
@@ -45,6 +46,7 @@ func ListByType(
 	return resources, nil
 }
 
+// HasLocks reports whether a resource has one or more management locks.
 func HasLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, resourceID string) bool {
 	parsedID, err := azcorearm.ParseResourceID(resourceID)
 	if err != nil {
@@ -77,6 +79,7 @@ func HasLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, 
 	return false
 }
 
+// DeleteByID deletes a resource by ARM resource ID and API version.
 func DeleteByID(
 	ctx context.Context,
 	client *armresources.Client,

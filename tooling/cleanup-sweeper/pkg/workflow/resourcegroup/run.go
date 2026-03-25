@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/policy"
 )
 
+// RunOptions configures rg-ordered workflow execution.
 type RunOptions struct {
 	SubscriptionID  string
 	AzureCredential azcore.TokenCredential
@@ -44,6 +45,7 @@ type RunOptions struct {
 	Policy policy.RGOrderedPolicy
 }
 
+// Run executes the rg-ordered workflow across candidate resource groups.
 func Run(ctx context.Context, opts RunOptions) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
