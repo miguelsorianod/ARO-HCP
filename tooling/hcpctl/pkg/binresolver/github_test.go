@@ -15,8 +15,8 @@
 package binresolver
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,46 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitHubTokenAuth(t *testing.T) {
-	var receivedAuth string
-	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"tag_name": "v1.0.0"}`)
-	}))
-	defer apiServer.Close()
-
-	source := &GitHubSource{
-		Owner:      "test",
-		Repo:       "test",
-		APIBaseURL: apiServer.URL,
-	}
-
-	t.Run("with GITHUB_TOKEN set", func(t *testing.T) {
-		t.Setenv("GITHUB_TOKEN", "test-token-123")
-		receivedAuth = ""
-
-		version, err := source.LatestTagName(context.Background(), http.DefaultClient)
-		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", version)
-		assert.Equal(t, "Bearer test-token-123", receivedAuth)
-	})
-
-	t.Run("without GITHUB_TOKEN", func(t *testing.T) {
-		t.Setenv("GITHUB_TOKEN", "")
-		receivedAuth = ""
-
-		version, err := source.LatestTagName(context.Background(), http.DefaultClient)
-		require.NoError(t, err)
-		assert.Equal(t, "v1.0.0", version)
-		assert.Empty(t, receivedAuth)
-	})
-}
-
 func TestGitHubSourceDownloadURL(t *testing.T) {
 	source := &GitHubSource{Owner: "openshift", Repo: "must-gather-clean"}
 
-	url := source.DownloadURL("v1.2.3", "must-gather-clean-linux-amd64.tar.gz")
+	url := source.downloadURL("v1.2.3", "must-gather-clean-linux-amd64.tar.gz")
 	assert.Equal(t, "https://github.com/openshift/must-gather-clean/releases/download/v1.2.3/must-gather-clean-linux-amd64.tar.gz", url)
 }
 
@@ -75,20 +39,78 @@ func TestGitHubSourceDownloadURLWithOverride(t *testing.T) {
 		DownloadBaseURL: "https://custom.example.com",
 	}
 
-	url := source.DownloadURL("v1.0.0", "asset.tar.gz")
+	url := source.downloadURL("v1.0.0", "asset.tar.gz")
 	assert.Equal(t, "https://custom.example.com/openshift/must-gather-clean/releases/download/v1.0.0/asset.tar.gz", url)
 }
 
-func TestGitHubSourceReleasesURL(t *testing.T) {
-	source := &GitHubSource{Owner: "openshift", Repo: "must-gather-clean"}
-	assert.Equal(t, "https://github.com/openshift/must-gather-clean/releases", source.ReleasesURL())
+func TestGitHubDownloadRetriesOnFailure(t *testing.T) {
+	binaryContent := []byte("test binary content")
+
+	// Server fails on first attempts, then succeeds
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			http.Error(w, "temporary failure", http.StatusServiceUnavailable)
+			return
+		}
+		_, err := w.Write(binaryContent)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	source := &GitHubSource{
+		Owner:           "test",
+		Repo:            "test",
+		DownloadBaseURL: server.URL,
+	}
+
+	var buf bytes.Buffer
+	err := source.Download(context.Background(), "v1.0.0", "test.tar.gz", &buf)
+	require.NoError(t, err)
+	assert.Equal(t, binaryContent, buf.Bytes())
+	assert.GreaterOrEqual(t, attemptCount, 3, "expected at least 3 attempts (failures + success)")
 }
 
-func TestGitHubSourceReleasesURLWithOverride(t *testing.T) {
+func TestGitHubDownloadFailsAfterMaxRetries(t *testing.T) {
+	// Server always returns 503 (retryable by go-retryablehttp)
+	attemptCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		http.Error(w, "permanent failure", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
 	source := &GitHubSource{
-		Owner:           "openshift",
-		Repo:            "must-gather-clean",
-		DownloadBaseURL: "https://custom.example.com",
+		Owner:           "test",
+		Repo:            "test",
+		DownloadBaseURL: server.URL,
 	}
-	assert.Equal(t, "https://custom.example.com/openshift/must-gather-clean/releases", source.ReleasesURL())
+
+	var buf bytes.Buffer
+	err := source.Download(context.Background(), "v1.0.0", "test.tar.gz", &buf)
+	require.Error(t, err)
+
+	assert.Equal(t, 4, attemptCount, "expected 4 total attempts (1 initial + 3 retries)")
+}
+
+func TestGitHubDownloadSuccess(t *testing.T) {
+	binaryContent := []byte("successful download content")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write(binaryContent)
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	source := &GitHubSource{
+		Owner:           "test",
+		Repo:            "test",
+		DownloadBaseURL: server.URL,
+	}
+
+	var buf bytes.Buffer
+	err := source.Download(context.Background(), "v1.0.0", "test.tar.gz", &buf)
+	require.NoError(t, err)
+	assert.Equal(t, binaryContent, buf.Bytes())
 }

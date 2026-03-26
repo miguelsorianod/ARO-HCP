@@ -18,8 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"os"
+	"sync"
+	"time"
+
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 )
 
 // GitHubSource downloads binaries from GitHub releases.
@@ -29,10 +33,25 @@ type GitHubSource struct {
 
 	APIBaseURL      string
 	DownloadBaseURL string
+
+	clientOnce sync.Once
+	client     *retryablehttp.Client
 }
 
 type githubReleaseResponse struct {
 	TagName string `json:"tag_name"`
+}
+
+func (s *GitHubSource) httpClient() *retryablehttp.Client {
+	s.clientOnce.Do(func() {
+		c := retryablehttp.NewClient()
+		c.RetryMax = 3
+		c.RetryWaitMin = 1 * time.Second
+		c.RetryWaitMax = 10 * time.Second
+		c.Logger = nil
+		s.client = c
+	})
+	return s.client
 }
 
 func (s *GitHubSource) apiBase() string {
@@ -49,25 +68,23 @@ func (s *GitHubSource) downloadBase() string {
 	return "https://github.com"
 }
 
-func (s *GitHubSource) LatestTagName(ctx context.Context, client *http.Client) (string, error) {
+func (s *GitHubSource) LatestTagName(ctx context.Context) (string, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", s.apiBase(), s.Owner, s.Repo)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
 
-	resp, err := client.Do(req)
+	resp, err := s.httpClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to query GitHub API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
 		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
@@ -83,11 +100,32 @@ func (s *GitHubSource) LatestTagName(ctx context.Context, client *http.Client) (
 	return release.TagName, nil
 }
 
-func (s *GitHubSource) DownloadURL(version, asset string) string {
-	return fmt.Sprintf("%s/%s/%s/releases/download/%s/%s",
-		s.downloadBase(), s.Owner, s.Repo, version, asset)
+func (s *GitHubSource) Download(ctx context.Context, version, asset string, w io.Writer) error {
+	url := s.downloadURL(version, asset)
+
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create download request: %w", err)
+	}
+	resp, err := s.httpClient().Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to download asset: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return fmt.Errorf("download returned status %d for %s", resp.StatusCode, url)
+	}
+
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return fmt.Errorf("failed to write downloaded asset: %w", err)
+	}
+
+	return nil
 }
 
-func (s *GitHubSource) ReleasesURL() string {
-	return fmt.Sprintf("%s/%s/%s/releases", s.downloadBase(), s.Owner, s.Repo)
+func (s *GitHubSource) downloadURL(version, asset string) string {
+	return fmt.Sprintf("%s/%s/%s/releases/download/%s/%s",
+		s.downloadBase(), s.Owner, s.Repo, version, asset)
 }

@@ -14,9 +14,7 @@
 
 package binresolver
 
-import (
-	"context"
-)
+import "context"
 
 // MustGatherClean is the BinarySpec for the openshift/must-gather-clean tool.
 var MustGatherClean = BinarySpec{
@@ -30,6 +28,7 @@ var MustGatherClean = BinarySpec{
 // ResolveMustGatherClean resolves the path to the must-gather-clean binary.
 // If explicitPath is non-empty, it verifies the file exists and returns it.
 // Otherwise, it downloads the latest release and caches it locally.
-func ResolveMustGatherClean(ctx context.Context, explicitPath string) (string, error) {
-	return Resolve(ctx, MustGatherClean, explicitPath)
+// cacheDir overrides the default cache directory (empty uses default).
+func ResolveMustGatherClean(ctx context.Context, explicitPath, cacheDir string) (string, error) {
+	return Resolve(ctx, MustGatherClean, explicitPath, cacheDir)
 }

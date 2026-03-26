@@ -17,27 +17,25 @@ package binresolver
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 )
 
-// Get the latest tag name and provide download URLs for a binary.
+// Source provides methods to query and download binaries from a release source.
 type Source interface {
-	LatestTagName(ctx context.Context, client *http.Client) (string, error)
-	DownloadURL(version, asset string) string
+	LatestTagName(ctx context.Context) (string, error)
+	Download(ctx context.Context, version, asset string, w io.Writer) error
 }
 
 // BinarySpec defines a downloadable binary.
@@ -51,39 +49,51 @@ type BinarySpec struct {
 
 // resolverConfig holds configuration for resolving and downloading binaries.
 type resolverConfig struct {
-	cacheRoot  string
-	httpClient *http.Client
-}
-
-var defaultConfig = resolverConfig{
-	httpClient: &http.Client{Timeout: 60 * time.Second},
+	cacheRoot string
 }
 
 // Resolve returns the path to the binary. It checks in order:
 // 1. An explicit path provided by the user (verified to exist).
-// 2. The latest release version, using a locally cached copy if available.
-// 3. A previously cached version as a fallback when the source is unreachable.
-// If no cached binary exists, the latest release is downloaded and cached.
-func Resolve(ctx context.Context, spec BinarySpec, explicitPath string) (string, error) {
-	return defaultConfig.resolve(ctx, spec, explicitPath)
+// 2. The locally cached binary, if its version matches the latest release.
+// 3. The latest release, downloaded and cached when a newer version is available.
+// 4. A previously cached binary as a fallback when the source is unreachable.
+//
+// cacheDir overrides the default cache directory. If empty, HCPCTL_CACHE_DIR
+// env var is checked, then the OS user cache directory is used.
+func Resolve(ctx context.Context, spec BinarySpec, explicitPath, cacheDir string) (string, error) {
+	cfg := resolverConfig{cacheRoot: cacheDir}
+	return cfg.resolve(ctx, spec, explicitPath)
 }
 
 func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explicitPath string) (string, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	if explicitPath != "" {
-		if _, err := os.Stat(explicitPath); err != nil {
+		info, err := os.Stat(explicitPath)
+		if err != nil {
 			return "", fmt.Errorf("failed to find binary at explicit path %q: %w", explicitPath, err)
+		}
+		if info.IsDir() {
+			return "", fmt.Errorf("explicit path %q is a directory, not a binary", explicitPath)
 		}
 		logger.V(1).Info("using explicit binary path", "path", explicitPath)
 		return explicitPath, nil
+	}
+
+	if err := validateName(spec.Name); err != nil {
+		return "", err
 	}
 
 	if spec.Source == nil {
 		return "", fmt.Errorf("no source configured for %q binary", spec.Name)
 	}
 
-	version, err := spec.Source.LatestTagName(ctx, cfg.httpClient)
+	version, err := spec.Source.LatestTagName(ctx)
+	if err == nil {
+		if verr := validateVersion(version); verr != nil {
+			return "", verr
+		}
+	}
 	if err != nil {
 		logger.V(1).Info("failed to query for latest version, attempting cache fallback", "error", err)
 		cached, fallbackErr := cfg.findAnyCached(spec)
@@ -91,19 +101,28 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 			return "", fmt.Errorf("failed to get latest version and no cached binary found; "+
 				"you can manually download the binary and provide it via %s: %w", "--"+spec.Name+"-binary", err)
 		}
-		logger.V(1).Info("using cached binary (may be outdated)", "path", cached)
+		if cachedVer, verErr := cfg.readCachedVersion(spec); verErr == nil {
+			logger.V(1).Info("using cached binary (source unreachable)", "path", cached, "version", cachedVer)
+		} else {
+			logger.V(1).Info("using cached binary (source unreachable, version unknown)", "path", cached)
+		}
 		return cached, nil
 	}
 
-	binPath, err := cfg.cachedBinaryPath(spec, version)
+	binPath, err := cfg.cachedBinaryPath(spec)
 	if err != nil {
 		return "", fmt.Errorf("failed to determine cache path; "+
 			"you can manually provide the binary via %s: %w", "--"+spec.Name+"-binary", err)
 	}
 
-	if _, err := os.Stat(binPath); err == nil {
-		logger.V(4).Info("using cached binary", "path", binPath, "version", version)
-		return binPath, nil
+	// Check if cached binary is already at the latest version
+	cachedVersion, versionErr := cfg.readCachedVersion(spec)
+	if versionErr == nil && cachedVersion == version {
+		if _, statErr := os.Stat(binPath); statErr == nil {
+			logger.V(1).Info("cached binary is up to date", "path", binPath, "version", version)
+			return binPath, nil
+		}
+		logger.V(1).Info("version file present but binary missing, re-downloading", "version", version)
 	}
 
 	logger.V(1).Info("downloading binary", "name", spec.Name, "version", version)
@@ -113,8 +132,8 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 			spec.Name, version, runtime.GOOS, runtime.GOARCH, "--"+spec.Name+"-binary", err)
 	}
 
-	if err := cfg.cleanOldVersions(ctx, spec, version); err != nil {
-		logger.V(1).Info("failed to clean old cached versions", "error", err)
+	if err := cfg.writeCachedVersion(spec, version); err != nil {
+		logger.V(1).Info("failed to write version file (binary is still usable)", "error", err)
 	}
 
 	logger.V(1).Info("binary downloaded and cached", "path", binPath, "version", version)
@@ -123,45 +142,34 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 
 func (cfg *resolverConfig) download(ctx context.Context, spec BinarySpec, version, destPath string) error {
 	asset := assetName(spec)
-	url := spec.Source.DownloadURL(version, asset)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create download request: %w", err)
-	}
-
-	resp, err := cfg.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to download asset: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download returned status %d for %s", resp.StatusCode, url)
-	}
-
+	// Create temp file for download
 	tmpFile, err := os.CreateTemp("", "binresolver-download-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
 
-	if _, err := io.Copy(tmpFile, io.LimitReader(resp.Body, maxArchiveSize+1)); err != nil {
+	// Source handles download with retries
+	if err := spec.Source.Download(ctx, version, asset, tmpFile); err != nil {
 		tmpFile.Close()
-		return fmt.Errorf("failed to write downloaded asset: %w", err)
-	}
-
-	n, _ := tmpFile.Seek(0, io.SeekCurrent)
-	if n > maxArchiveSize {
-		tmpFile.Close()
-		return fmt.Errorf("downloaded archive exceeds maximum allowed size (%d MB)", maxArchiveSize>>20)
+		return fmt.Errorf("failed to download asset: %w", err)
 	}
 
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("failed to flush downloaded asset to disk: %w", err)
 	}
 
-	if err := cfg.verifyChecksum(ctx, spec, version, asset, tmpFile.Name()); err != nil {
+	info, err := os.Stat(tmpPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat downloaded archive: %w", err)
+	}
+	if info.Size() > maxArchiveSize {
+		return fmt.Errorf("downloaded archive exceeds maximum allowed size (%d MB)", maxArchiveSize>>20)
+	}
+
+	if err := cfg.verifyChecksum(ctx, spec, version, asset, tmpPath); err != nil {
 		return fmt.Errorf("checksum verification failed: %w", err)
 	}
 
@@ -169,16 +177,35 @@ func (cfg *resolverConfig) download(ctx context.Context, spec BinarySpec, versio
 		return fmt.Errorf("failed to create cache directory %q (check write permissions): %w", filepath.Dir(destPath), err)
 	}
 
+	// Extract to a temporary file first, then rename to the final path.
+	// This ensures a previously-good cached binary is not destroyed if
+	// extraction fails partway through.
+	extractTmpFile, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".tmp.*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file for extraction: %w", err)
+	}
+	extractTmp := extractTmpFile.Name()
+	extractTmpFile.Close()
+	defer os.Remove(extractTmp)
+
 	if strings.HasSuffix(asset, ".tar.gz") {
-		if err := extractTarGz(tmpFile.Name(), spec.Name, destPath); err != nil {
+		if err := extractTarGz(tmpPath, spec.Name, extractTmp); err != nil {
 			return fmt.Errorf("failed to extract tar.gz archive: %w", err)
 		}
 	} else if strings.HasSuffix(asset, ".zip") {
-		if err := extractZip(tmpFile.Name(), spec.Name, destPath); err != nil {
+		if err := extractZip(tmpPath, spec.Name, extractTmp); err != nil {
 			return fmt.Errorf("failed to extract zip archive: %w", err)
 		}
 	} else {
 		return fmt.Errorf("unsupported asset format: %s", asset)
+	}
+
+	if err := os.Chmod(extractTmp, 0755); err != nil {
+		return fmt.Errorf("failed to set binary permissions: %w", err)
+	}
+
+	if err := os.Rename(extractTmp, destPath); err != nil {
+		return fmt.Errorf("failed to move extracted binary to cache: %w", err)
 	}
 
 	return nil
@@ -187,6 +214,23 @@ func (cfg *resolverConfig) download(ctx context.Context, spec BinarySpec, versio
 const maxBinarySize = 256 << 20     // 256 MB
 const maxArchiveSize = 512 << 20    // 512 MB
 const maxChecksumFileSize = 1 << 20 // 1 MB
+
+type limitedWriter struct {
+	w        io.Writer
+	n        int64
+	limit    int64
+	overflow bool
+}
+
+func (lw *limitedWriter) Write(p []byte) (int, error) {
+	if lw.n+int64(len(p)) > lw.limit {
+		lw.overflow = true
+		return len(p), nil
+	}
+	n, err := lw.w.Write(p)
+	lw.n += int64(n)
+	return n, err
+}
 
 func writeExtractedBinary(src io.Reader, binaryName, destPath string) error {
 	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
@@ -271,65 +315,17 @@ func (cfg *resolverConfig) verifyChecksum(ctx context.Context, spec BinarySpec, 
 	}
 	logger := logr.FromContextOrDiscard(ctx)
 
-	url := spec.Source.DownloadURL(version, spec.ChecksumAsset)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		logger.V(1).Info(
-			"checksum verification skipped",
-			"reason", "request_creation_failed",
-			"asset", assetFileName,
-			"checksumAsset", spec.ChecksumAsset,
-			"error", err,
-		)
-		return nil
+	var buf bytes.Buffer
+	lw := &limitedWriter{w: &buf, limit: maxChecksumFileSize}
+	if err := spec.Source.Download(ctx, version, spec.ChecksumAsset, lw); err != nil {
+		return fmt.Errorf("failed to download checksum file %q: %w", spec.ChecksumAsset, err)
 	}
 
-	resp, err := cfg.httpClient.Do(req)
-	if err != nil {
-		logger.V(1).Info(
-			"checksum verification skipped",
-			"reason", "download_failed",
-			"asset", assetFileName,
-			"checksumAsset", spec.ChecksumAsset,
-			"error", err,
-		)
-		return nil
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		logger.V(1).Info(
-			"checksum verification skipped",
-			"reason", "checksum_unavailable",
-			"asset", assetFileName,
-			"checksumAsset", spec.ChecksumAsset,
-			"status", resp.StatusCode,
-		)
-		return nil
+	if lw.overflow {
+		return fmt.Errorf("checksum file %q exceeds maximum allowed size (%d bytes)", spec.ChecksumAsset, maxChecksumFileSize)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxChecksumFileSize+1))
-	if err != nil {
-		logger.V(1).Info(
-			"checksum verification skipped",
-			"reason", "checksum_read_failed",
-			"asset", assetFileName,
-			"checksumAsset", spec.ChecksumAsset,
-			"error", err,
-		)
-		return nil
-	}
-	if len(body) > maxChecksumFileSize {
-		logger.V(1).Info(
-			"checksum verification skipped",
-			"reason", "checksum_too_large",
-			"asset", assetFileName,
-			"checksumAsset", spec.ChecksumAsset,
-			"maxSizeBytes", maxChecksumFileSize,
-		)
-		return nil
-	}
+	body := buf.Bytes()
 
 	var expectedHash string
 	for line := range strings.SplitSeq(string(body), "\n") {
@@ -345,35 +341,19 @@ func (cfg *resolverConfig) verifyChecksum(ctx context.Context, spec BinarySpec, 
 
 		hash := strings.ToLower(parts[0])
 		if len(hash) != 64 {
-			logger.V(1).Info(
-				"checksum verification skipped",
-				"reason", "invalid_checksum_entry",
-				"asset", assetFileName,
-				"checksumAsset", spec.ChecksumAsset,
-			)
-			return nil
+			return fmt.Errorf("invalid checksum entry for %q in %q: hash is %d characters, expected 64",
+				assetFileName, spec.ChecksumAsset, len(hash))
 		}
 		if _, err := hex.DecodeString(hash); err != nil {
-			logger.V(1).Info(
-				"checksum verification skipped",
-				"reason", "invalid_checksum_entry",
-				"asset", assetFileName,
-				"checksumAsset", spec.ChecksumAsset,
-			)
-			return nil
+			return fmt.Errorf("invalid checksum entry for %q in %q: hash is not valid hex: %w",
+				assetFileName, spec.ChecksumAsset, err)
 		}
 		expectedHash = hash
 		break
 	}
 
 	if expectedHash == "" {
-		logger.V(1).Info(
-			"checksum verification skipped",
-			"reason", "asset_not_in_checksum",
-			"asset", assetFileName,
-			"checksumAsset", spec.ChecksumAsset,
-		)
-		return nil
+		return fmt.Errorf("asset %q not found in checksum file %q", assetFileName, spec.ChecksumAsset)
 	}
 
 	f, err := os.Open(archivePath)
@@ -396,6 +376,49 @@ func (cfg *resolverConfig) verifyChecksum(ctx context.Context, spec BinarySpec, 
 	return nil
 }
 
+func validateVersion(version string) error {
+	if version == "" {
+		return fmt.Errorf("version string must not be empty")
+	}
+	if strings.ContainsAny(version, `/\`) {
+		return fmt.Errorf("invalid version string from source: %q", version)
+	}
+	if version == ".." || strings.HasPrefix(version, "../") || strings.HasSuffix(version, "/..") || strings.Contains(version, "/../") {
+		return fmt.Errorf("invalid version string from source: %q", version)
+	}
+	if strings.ContainsAny(version, "\x00") {
+		return fmt.Errorf("invalid version string from source: %q (contains null byte)", version)
+	}
+	if strings.ContainsAny(version, "?#") {
+		return fmt.Errorf("invalid version string from source: %q (contains URL-unsafe characters)", version)
+	}
+	if strings.ContainsAny(version, " \t\n\r") {
+		return fmt.Errorf("invalid version string from source: %q (contains whitespace)", version)
+	}
+	return nil
+}
+
+func validateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("binary name must not be empty")
+	}
+	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid binary name %q: must not contain path separators or '..'", name)
+	}
+	if strings.ContainsAny(name, "\x00") {
+		return fmt.Errorf("invalid binary name %q: must not contain null bytes", name)
+	}
+	return nil
+}
+
+func binaryFileName(spec BinarySpec) string {
+	name := spec.Name
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return name
+}
+
 func assetName(spec BinarySpec) string {
 	pattern := spec.AssetPattern
 	if runtime.GOOS == "windows" && spec.WindowsAssetPattern != "" {
@@ -412,6 +435,9 @@ func assetName(spec BinarySpec) string {
 func (cfg *resolverConfig) cacheBaseDir(spec BinarySpec) (string, error) {
 	root := cfg.cacheRoot
 	if root == "" {
+		root = os.Getenv("HCPCTL_CACHE_DIR")
+	}
+	if root == "" {
 		var err error
 		root, err = os.UserCacheDir()
 		if err != nil {
@@ -422,49 +448,64 @@ func (cfg *resolverConfig) cacheBaseDir(spec BinarySpec) (string, error) {
 	return filepath.Join(root, spec.Name), nil
 }
 
-func (cfg *resolverConfig) cachedBinaryPath(spec BinarySpec, version string) (string, error) {
+func (cfg *resolverConfig) cachedBinaryPath(spec BinarySpec) (string, error) {
 	baseDir, err := cfg.cacheBaseDir(spec)
 	if err != nil {
 		return "", err
 	}
-	binaryName := spec.Name
-	if runtime.GOOS == "windows" {
-		binaryName += ".exe"
-	}
-	return filepath.Join(baseDir, version, binaryName), nil
+	return filepath.Join(baseDir, binaryFileName(spec)), nil
 }
 
-func (cfg *resolverConfig) cleanOldVersions(ctx context.Context, spec BinarySpec, currentVersion string) error {
-	logger := logr.FromContextOrDiscard(ctx)
-
+func (cfg *resolverConfig) cachedVersionPath(spec BinarySpec) (string, error) {
 	baseDir, err := cfg.cacheBaseDir(spec)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(baseDir, ".version"), nil
+}
+
+func (cfg *resolverConfig) readCachedVersion(spec BinarySpec) (string, error) {
+	versionPath, err := cfg.cachedVersionPath(spec)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(versionPath)
+	if err != nil {
+		return "", err
+	}
+	version := strings.TrimSpace(string(data))
+	if err := validateVersion(version); err != nil {
+		return "", fmt.Errorf("cached version file contains invalid content: %w", err)
+	}
+	return version, nil
+}
+
+func (cfg *resolverConfig) writeCachedVersion(spec BinarySpec, version string) error {
+	versionPath, err := cfg.cachedVersionPath(spec)
 	if err != nil {
 		return err
 	}
-
-	entries, err := os.ReadDir(baseDir)
+	if err := os.MkdirAll(filepath.Dir(versionPath), 0755); err != nil {
+		return fmt.Errorf("failed to create cache directory: %w", err)
+	}
+	tmpFile, err := os.CreateTemp(filepath.Dir(versionPath), ".version.tmp.*")
 	if err != nil {
-		return fmt.Errorf("failed to read cache directory: %w", err)
+		return fmt.Errorf("failed to create temp version file: %w", err)
 	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
 
-	var errs []error
-	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == currentVersion {
-			continue
-		}
-		// Only remove directories that contain the expected binary, so we don't remove directories out of scope
-		binaryPath := filepath.Join(baseDir, entry.Name(), spec.Name)
-		if _, err := os.Stat(binaryPath); err != nil {
-			continue
-		}
-		oldVersionPath := filepath.Join(baseDir, entry.Name())
-		logger.V(1).Info("removing old cached version", "version", entry.Name(), "path", oldVersionPath)
-		if err := os.RemoveAll(oldVersionPath); err != nil {
-			errs = append(errs, fmt.Errorf("failed to remove old version %s: %w", entry.Name(), err))
-		}
+	if _, err := tmpFile.WriteString(version + "\n"); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("failed to write version file: %w", err)
 	}
-
-	return errors.Join(errs...)
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close version file: %w", err)
+	}
+	if err := os.Rename(tmpPath, versionPath); err != nil {
+		return fmt.Errorf("failed to atomically update version file: %w", err)
+	}
+	return nil
 }
 
 func (cfg *resolverConfig) findAnyCached(spec BinarySpec) (string, error) {
@@ -473,44 +514,9 @@ func (cfg *resolverConfig) findAnyCached(spec BinarySpec) (string, error) {
 		return "", err
 	}
 
-	entries, err := os.ReadDir(baseDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to read cache directory: %w", err)
+	binPath := filepath.Join(baseDir, binaryFileName(spec))
+	if _, err := os.Stat(binPath); err != nil {
+		return "", fmt.Errorf("no cached binary found for %s", spec.Name)
 	}
-
-	binaryName := spec.Name
-	if runtime.GOOS == "windows" {
-		binaryName += ".exe"
-	}
-
-	type cachedCandidate struct {
-		path    string
-		modTime time.Time
-	}
-	var selected *cachedCandidate
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		candidate := filepath.Join(baseDir, entry.Name(), binaryName)
-		info, err := os.Stat(candidate)
-		if err != nil {
-			continue
-		}
-
-		if selected == nil || info.ModTime().After(selected.modTime) {
-			selected = &cachedCandidate{
-				path:    candidate,
-				modTime: info.ModTime(),
-			}
-		}
-	}
-
-	if selected != nil {
-		return selected.path, nil
-	}
-
-	return "", fmt.Errorf("no cached binary found for %s", spec.Name)
+	return binPath, nil
 }

@@ -74,9 +74,11 @@ The `clean` command processes must-gather data to remove sensitive information u
 
 #### must-gather-clean Binary
 
-The `must-gather-clean` binary is automatically downloaded from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page and cached locally when the `--must-gather-clean-binary` flag is omitted. The cached binary is stored in your OS cache directory (`~/.cache/hcpctl/bin/` on Linux, `~/Library/Caches/hcpctl/bin/` on macOS).
+The `must-gather-clean` binary is automatically downloaded from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page when the `--must-gather-clean-binary` flag is omitted. The latest version is checked against the locally cached version; if a newer version is available, it is downloaded automatically. If GitHub is unreachable, the previously cached binary is used as a fallback. The cached binary is stored in your OS cache directory (`~/.cache/hcpctl/bin/` on Linux, `~/Library/Caches/hcpctl/bin/` on macOS).
 
-To use a specific binary instead, pass `--must-gather-clean-binary /path/to/must-gather-clean`.
+To override the cache directory, use `--cache-dir /path/to/cache` or set the `HCPCTL_CACHE_DIR` environment variable.
+
+To use a specific binary instead (skipping download entirely), pass `--must-gather-clean-binary /path/to/must-gather-clean`.
 
 #### Usage Examples
 

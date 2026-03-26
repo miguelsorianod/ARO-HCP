@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -31,6 +32,7 @@ type RawCleanOptions struct {
 	MustGatherCleanBinary string
 	CleanedOutputPath     string
 	CleanConfigPath       string
+	CacheDir              string
 }
 
 func DefaultCleanOptions() *RawCleanOptions {
@@ -58,6 +60,7 @@ func BindCleanOptions(opts *RawCleanOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.MustGatherCleanBinary, "must-gather-clean-binary", opts.MustGatherCleanBinary, "Optional path to must-gather-clean binary. If omitted, the latest release is automatically downloaded and cached.")
 	cmd.Flags().StringVar(&opts.CleanedOutputPath, "cleaned-output-path", opts.CleanedOutputPath, "Path to cleaned output")
 	cmd.Flags().StringVar(&opts.CleanConfigPath, "clean-config-path", opts.CleanConfigPath, "Path to must-gather-clean config, will be extended with ARO-HCP Service Configuration literals")
+	cmd.Flags().StringVar(&opts.CacheDir, "cache-dir", opts.CacheDir, "Override cache directory for downloaded binaries. Defaults to OS cache dir. Can also be set via HCPCTL_CACHE_DIR env var.")
 
 	if err := cmd.MarkFlagDirname("path-to-clean"); err != nil {
 		return fmt.Errorf("failed to mark flag %q as a file: %w", "path-to-clean", err)
@@ -76,6 +79,9 @@ func BindCleanOptions(opts *RawCleanOptions, cmd *cobra.Command) error {
 	}
 	if err := cmd.MarkFlagDirname("cleaned-output-path"); err != nil {
 		return fmt.Errorf("failed to mark flag %q as a directory: %w", "cleaned-output-path", err)
+	}
+	if err := cmd.MarkFlagDirname("cache-dir"); err != nil {
+		return fmt.Errorf("failed to mark flag %q as a directory: %w", "cache-dir", err)
 	}
 	return nil
 }
@@ -99,6 +105,11 @@ func (opts *RawCleanOptions) Validate(ctx context.Context) (*ValidatedCleanOptio
 	if opts.CleanedOutputPath == "" {
 		return nil, fmt.Errorf("cleaned-output-path is required")
 	}
+	if opts.CacheDir != "" {
+		if !filepath.IsAbs(opts.CacheDir) {
+			return nil, fmt.Errorf("cache-dir must be an absolute path, got %q", opts.CacheDir)
+		}
+	}
 
 	return &ValidatedCleanOptions{
 		RawCleanOptions: opts,
@@ -108,7 +119,7 @@ func (opts *RawCleanOptions) Validate(ctx context.Context) (*ValidatedCleanOptio
 func (opts *ValidatedCleanOptions) Complete(ctx context.Context) (*CleanOptions, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	resolvedBinary, err := binresolver.ResolveMustGatherClean(ctx, opts.MustGatherCleanBinary)
+	resolvedBinary, err := binresolver.ResolveMustGatherClean(ctx, opts.MustGatherCleanBinary, opts.CacheDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve must-gather-clean binary: %w", err)
 	}

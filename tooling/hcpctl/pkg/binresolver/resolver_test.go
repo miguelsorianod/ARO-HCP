@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,7 +30,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/logr/funcr"
@@ -43,15 +43,29 @@ type testSource struct {
 	serverURL  string // base URL for downloads
 }
 
-func (s *testSource) LatestTagName(_ context.Context, _ *http.Client) (string, error) {
+func (s *testSource) LatestTagName(_ context.Context) (string, error) {
 	if s.versionErr != nil {
 		return "", s.versionErr
 	}
 	return s.version, nil
 }
 
-func (s *testSource) DownloadURL(version, asset string) string {
-	return s.serverURL + "/" + version + "/" + asset
+func (s *testSource) Download(ctx context.Context, version, asset string, w io.Writer) error {
+	url := s.serverURL + "/" + version + "/" + asset
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download returned status %d for %s", resp.StatusCode, url)
+	}
+	_, err = io.Copy(w, resp.Body)
+	return err
 }
 
 func setupTestDownloadServer(t *testing.T, assets map[string][]byte) *httptest.Server {
@@ -71,8 +85,7 @@ func setupTestDownloadServer(t *testing.T, assets map[string][]byte) *httptest.S
 func testConfig(t *testing.T) *resolverConfig {
 	t.Helper()
 	return &resolverConfig{
-		cacheRoot:  t.TempDir(),
-		httpClient: http.DefaultClient,
+		cacheRoot: t.TempDir(),
 	}
 }
 
@@ -165,7 +178,301 @@ func TestResolveWithoutSourceReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "no source configured")
 }
 
+func TestResolveRejectsInvalidVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+	}{
+		{"path traversal with dots", "../../../etc/passwd"},
+		{"path traversal with slash", "v1.0.0/../../evil"},
+		{"backslash traversal", `v1.0.0\..\evil`},
+		{"trailing dot-dot", "v1.0.0/.."},
+		{"query string injection", "v1.0.0?malicious=true"},
+		{"fragment injection", "v1.0.0#fragment"},
+		{"space in version", "v1.0.0 evil"},
+		{"newline in version", "v1.0.0\nevil"},
+		{"null byte in version", "v1.0.0\x00evil"},
+		{"tab in version", "v1.0.0\tevil"},
+		{"carriage return", "v1.0.0\revil"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := testConfig(t)
+			spec := BinarySpec{
+				Name:         "test-binary",
+				Source:       &testSource{version: tt.version},
+				AssetPattern: "{name}-{os}-{arch}.tar.gz",
+			}
+
+			_, err := cfg.resolve(context.Background(), spec, "")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid version string")
+		})
+	}
+}
+
+func TestResolveAcceptsDoubleDotInVersionName(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v1..0/" + asset: tarGzData,
+	})
+	spec.Source = &testSource{version: "v1..0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	result, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.NotEmpty(t, result)
+}
+
+func TestLimitedWriter(t *testing.T) {
+	t.Run("within limit", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &limitedWriter{w: &buf, limit: 100}
+		n, err := lw.Write([]byte("hello"))
+		require.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.False(t, lw.overflow)
+		assert.Equal(t, "hello", buf.String())
+	})
+
+	t.Run("exceeds limit", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &limitedWriter{w: &buf, limit: 3}
+		n, err := lw.Write([]byte("hello"))
+		require.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.True(t, lw.overflow)
+		assert.Empty(t, buf.String())
+	})
+
+	t.Run("exact limit", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &limitedWriter{w: &buf, limit: 5}
+		n, err := lw.Write([]byte("hello"))
+		require.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.False(t, lw.overflow)
+		assert.Equal(t, "hello", buf.String())
+	})
+
+	t.Run("multiple writes exceeding limit", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &limitedWriter{w: &buf, limit: 8}
+		_, err := lw.Write([]byte("hello"))
+		require.NoError(t, err)
+		assert.False(t, lw.overflow)
+
+		_, err = lw.Write([]byte("world"))
+		require.NoError(t, err)
+		assert.True(t, lw.overflow)
+		assert.Equal(t, "hello", buf.String())
+	})
+}
+
+func TestChecksumRejectsOversizedChecksumFile(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:          "test-binary",
+		AssetPattern:  "{name}-{os}-{arch}.tar.gz",
+		ChecksumAsset: "SHA256_SUM",
+	}
+	asset := assetName(spec)
+
+	// Create a checksum file that exceeds maxChecksumFileSize
+	oversizedChecksum := strings.Repeat("x", maxChecksumFileSize+1)
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v1.0.0/" + asset:   tarGzData,
+		"/v1.0.0/SHA256_SUM": []byte(oversizedChecksum),
+	})
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	_, err := cfg.resolve(context.Background(), spec, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum allowed size")
+}
+
 func TestResolveAutoDownload(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	var downloadCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1.0.0/"+asset {
+			downloadCount++
+			_, err := w.Write(tarGzData)
+			require.NoError(t, err)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// First resolve — should download
+	result, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.NotEmpty(t, result)
+	assert.Equal(t, 1, downloadCount, "first resolve should download")
+
+	// Verify the binary was written
+	content, err := os.ReadFile(result)
+	require.NoError(t, err)
+	assert.Equal(t, binaryContent, content)
+
+	// Verify .version file was written
+	cachedVer, err := cfg.readCachedVersion(spec)
+	require.NoError(t, err)
+	assert.Equal(t, "v1.0.0", cachedVer)
+
+	// Second resolve — should use cache (no download)
+	result2, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, result, result2)
+	assert.Equal(t, 1, downloadCount, "second resolve should skip download (cache hit)")
+}
+
+func TestResolveCacheHitSkipsDownload(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	var downloadCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1.0.0/"+asset {
+			downloadCount++
+			_, err := w.Write(tarGzData)
+			require.NoError(t, err)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// First resolve downloads
+	_, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1, downloadCount)
+
+	// Resolve 5 more times — none should download
+	for i := 0; i < 5; i++ {
+		_, err := cfg.resolve(context.Background(), spec, "")
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 1, downloadCount, "repeated resolves with same version should not download")
+}
+
+func TestResolveDownloadsWhenVersionDiffers(t *testing.T) {
+	content1 := []byte("#!/bin/sh\necho v1\n")
+	content2 := []byte("#!/bin/sh\necho v2\n")
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	tarGz1 := createTestTarGz(t, "test-binary", content1)
+	tarGz2 := createTestTarGz(t, "test-binary", content2)
+
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v1.0.0/" + asset: tarGz1,
+		"/v2.0.0/" + asset: tarGz2,
+	})
+
+	cfg := testConfig(t)
+
+	// Download v1.0.0
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	result1, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	c1, _ := os.ReadFile(result1)
+	assert.Equal(t, content1, c1)
+
+	ver1, _ := cfg.readCachedVersion(spec)
+	assert.Equal(t, "v1.0.0", ver1)
+
+	// Source now returns v2.0.0 — should re-download
+	spec.Source = &testSource{version: "v2.0.0", serverURL: server.URL}
+	result2, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, result1, result2, "same cache path")
+
+	c2, _ := os.ReadFile(result2)
+	assert.Equal(t, content2, c2)
+
+	ver2, _ := cfg.readCachedVersion(spec)
+	assert.Equal(t, "v2.0.0", ver2)
+}
+
+func TestResolveDownloadsWhenVersionFileMissing(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	var downloadCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1.0.0/"+asset {
+			downloadCount++
+			_, err := w.Write(tarGzData)
+			require.NoError(t, err)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// First download
+	_, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1, downloadCount)
+
+	// Delete .version file
+	versionPath, _ := cfg.cachedVersionPath(spec)
+	require.NoError(t, os.Remove(versionPath))
+
+	// Should re-download since version is unknown
+	_, err = cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, 2, downloadCount, "missing .version file should trigger re-download")
+}
+
+func TestResolveDownloadsWhenVersionFileCorrupted(t *testing.T) {
 	binaryContent := []byte("#!/bin/sh\necho hello\n")
 	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
 
@@ -181,19 +488,126 @@ func TestResolveAutoDownload(t *testing.T) {
 	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
 	cfg := testConfig(t)
 
-	// Resolve without explicit path — should auto-download
+	// First download
+	_, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+
+	// Corrupt .version file with path traversal content
+	versionPath, _ := cfg.cachedVersionPath(spec)
+	require.NoError(t, os.WriteFile(versionPath, []byte("../../../etc/evil\n"), 0644))
+
+	// Should re-download since version is invalid
+	_, err = cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+
+	// Version should now be correct
+	ver, _ := cfg.readCachedVersion(spec)
+	assert.Equal(t, "v1.0.0", ver)
+}
+
+func TestResolveDownloadsWhenBinaryMissingButVersionExists(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v1.0.0/" + asset: tarGzData,
+	})
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// First download
 	result, err := cfg.resolve(context.Background(), spec, "")
 	require.NoError(t, err)
-	assert.NotEmpty(t, result)
 
-	// Verify the binary was written
-	content, err := os.ReadFile(result)
-	require.NoError(t, err)
-	assert.Equal(t, binaryContent, content)
+	// Delete binary but leave .version
+	require.NoError(t, os.Remove(result))
 
+	// Should re-download
 	result2, err := cfg.resolve(context.Background(), spec, "")
 	require.NoError(t, err)
 	assert.Equal(t, result, result2)
+
+	content, _ := os.ReadFile(result2)
+	assert.Equal(t, binaryContent, content)
+}
+
+func TestResolveOfflineFallbackLogsVersion(t *testing.T) {
+	cfg := testConfig(t)
+	spec := BinarySpec{
+		Name:         "test-binary",
+		Source:       &testSource{versionErr: fmt.Errorf("unreachable")},
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+
+	// Pre-populate cache with binary and .version
+	cacheDir, _ := cfg.cacheBaseDir(spec)
+	require.NoError(t, os.MkdirAll(cacheDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "test-binary"), []byte("bin"), 0755))
+	require.NoError(t, cfg.writeCachedVersion(spec, "v1.2.3"))
+
+	var logMessages []string
+	logger := funcr.New(func(_, args string) {
+		logMessages = append(logMessages, args)
+	}, funcr.Options{Verbosity: 4})
+	ctx := logr.NewContext(context.Background(), logger)
+
+	_, err := cfg.resolve(ctx, spec, "")
+	require.NoError(t, err)
+
+	found := false
+	for _, msg := range logMessages {
+		if strings.Contains(msg, "source unreachable") && strings.Contains(msg, "v1.2.3") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected log with version, got: %v", logMessages)
+}
+
+func TestResolveCacheHitWithNonSemverVersion(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	var downloadCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/abc123def/"+asset {
+			downloadCount++
+			_, err := w.Write(tarGzData)
+			require.NoError(t, err)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	// Source returns a commit hash instead of semver
+	spec.Source = &testSource{version: "abc123def", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// First resolve downloads
+	_, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1, downloadCount)
+
+	ver, _ := cfg.readCachedVersion(spec)
+	assert.Equal(t, "abc123def", ver)
+
+	// Second resolve — cache hit (non-semver version works)
+	_, err = cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1, downloadCount, "non-semver version should still cache hit")
 }
 
 func TestResolveOfflineFallback(t *testing.T) {
@@ -205,12 +619,10 @@ func TestResolveOfflineFallback(t *testing.T) {
 
 	cfg := testConfig(t)
 
-	// Pre-populate cache with a binary
 	cacheDir, err := cfg.cacheBaseDir(spec)
 	require.NoError(t, err)
-	versionDir := filepath.Join(cacheDir, "v0.0.1")
-	require.NoError(t, os.MkdirAll(versionDir, 0755))
-	cachedBin := filepath.Join(versionDir, "test-binary-offline")
+	require.NoError(t, os.MkdirAll(cacheDir, 0755))
+	cachedBin := filepath.Join(cacheDir, "test-binary-offline")
 	require.NoError(t, os.WriteFile(cachedBin, []byte("cached-binary"), 0755))
 
 	var logMessages []string
@@ -225,76 +637,12 @@ func TestResolveOfflineFallback(t *testing.T) {
 
 	found := false
 	for _, msg := range logMessages {
-		if strings.Contains(msg, "cached binary") && strings.Contains(msg, "outdated") {
+		if strings.Contains(msg, "cached binary") && strings.Contains(msg, "source unreachable") {
 			found = true
 			break
 		}
 	}
 	assert.True(t, found, "expected warning about cached binary, got: %v", logMessages)
-}
-
-func TestCleanOldVersions(t *testing.T) {
-	cfg := testConfig(t)
-	spec := BinarySpec{Name: "test-binary"}
-
-	baseDir, err := cfg.cacheBaseDir(spec)
-	require.NoError(t, err)
-
-	for _, v := range []string{"v0.0.1", "v0.0.2", "v0.0.3"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, v), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(baseDir, v, "test-binary"), []byte("bin"), 0755))
-	}
-
-	entries, err := os.ReadDir(baseDir)
-	require.NoError(t, err)
-	assert.Len(t, entries, 3)
-
-	require.NoError(t, cfg.cleanOldVersions(context.Background(), spec, "v0.0.3"))
-
-	entries, err = os.ReadDir(baseDir)
-	require.NoError(t, err)
-	assert.Len(t, entries, 1)
-	assert.Equal(t, "v0.0.3", entries[0].Name())
-}
-
-func TestCleanOldVersionsPreservesDirsWithoutBinary(t *testing.T) {
-	cfg := testConfig(t)
-	spec := BinarySpec{Name: "test-binary"}
-
-	baseDir, err := cfg.cacheBaseDir(spec)
-	require.NoError(t, err)
-
-	// Create version directories WITH binaries that we will delete
-	for _, v := range []string{"v0.0.1", "v0.0.2", "v0.0.3"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, v), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(baseDir, v, "test-binary"), []byte("bin"), 0755))
-	}
-	// Create directories without the expected binary, we are testing if we should preserve these directories
-	for _, other := range []string{"DontDeleteMe", "randomCrap", "notes"} {
-		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, other), 0755))
-		// Write a different file, not the expected binary
-		require.NoError(t, os.WriteFile(filepath.Join(baseDir, other, "some-other-file"), []byte("data"), 0644))
-	}
-
-	entries, err := os.ReadDir(baseDir)
-	require.NoError(t, err)
-	assert.Len(t, entries, 6)
-
-	require.NoError(t, cfg.cleanOldVersions(context.Background(), spec, "v0.0.3"))
-
-	entries, err = os.ReadDir(baseDir)
-	require.NoError(t, err)
-
-	assert.Len(t, entries, 4)
-
-	var names []string
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	assert.Contains(t, names, "v0.0.3")
-	assert.Contains(t, names, "DontDeleteMe")
-	assert.Contains(t, names, "randomCrap")
-	assert.Contains(t, names, "notes")
 }
 
 func TestChecksumVerification(t *testing.T) {
@@ -352,28 +700,9 @@ func TestChecksumVerification(t *testing.T) {
 		spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
 		cfg := testConfig(t)
 
-		var logMessages []string
-		logger := funcr.New(func(_ string, args string) {
-			logMessages = append(logMessages, args)
-		}, funcr.Options{Verbosity: 1})
-		ctx := logr.NewContext(context.Background(), logger)
-
-		result, err := cfg.resolve(ctx, spec, "")
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-
-		content, err := os.ReadFile(result)
-		require.NoError(t, err)
-		assert.Equal(t, binaryContent, content)
-
-		found := false
-		for _, msg := range logMessages {
-			if strings.Contains(msg, "checksum verification skipped") && strings.Contains(msg, "checksum_unavailable") {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "expected checksum_unavailable warning, got logs: %v", logMessages)
+		_, err := cfg.resolve(context.Background(), spec, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "checksum")
 	})
 
 	t.Run("checksum asset missing from checksum file", func(t *testing.T) {
@@ -386,28 +715,9 @@ func TestChecksumVerification(t *testing.T) {
 		spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
 		cfg := testConfig(t)
 
-		var logMessages []string
-		logger := funcr.New(func(_ string, args string) {
-			logMessages = append(logMessages, args)
-		}, funcr.Options{Verbosity: 1})
-		ctx := logr.NewContext(context.Background(), logger)
-
-		result, err := cfg.resolve(ctx, spec, "")
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-
-		content, err := os.ReadFile(result)
-		require.NoError(t, err)
-		assert.Equal(t, binaryContent, content)
-
-		found := false
-		for _, msg := range logMessages {
-			if strings.Contains(msg, "checksum verification skipped") && strings.Contains(msg, "asset_not_in_checksum") {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "expected asset_not_in_checksum warning, got logs: %v", logMessages)
+		_, err := cfg.resolve(context.Background(), spec, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found in checksum file")
 	})
 }
 
@@ -501,59 +811,24 @@ func TestResolveSkipsChecksumWhenNotConfigured(t *testing.T) {
 	assert.Equal(t, binaryContent, content)
 }
 
-func TestFindAnyCachedReturnsNewestByModTime(t *testing.T) {
+func TestFindAnyCachedReturnsCachedBinary(t *testing.T) {
 	cfg := testConfig(t)
 	spec := BinarySpec{Name: "test-binary"}
 
 	baseDir, err := cfg.cacheBaseDir(spec)
 	require.NoError(t, err)
 
-	now := time.Now()
-	versions := []string{"v0.0.1", "v0.0.2", "v0.0.3"}
-	for i, v := range versions {
-		binPath := filepath.Join(baseDir, v, "test-binary")
-		require.NoError(t, os.MkdirAll(filepath.Dir(binPath), 0755))
-		require.NoError(t, os.WriteFile(binPath, []byte("bin-"+v), 0755))
-		modTime := now.Add(time.Duration(i) * time.Minute)
-		require.NoError(t, os.Chtimes(binPath, modTime, modTime))
-	}
+	binPath := filepath.Join(baseDir, "test-binary")
+	require.NoError(t, os.MkdirAll(baseDir, 0755))
+	require.NoError(t, os.WriteFile(binPath, []byte("cached-bin"), 0755))
 
 	result, err := cfg.findAnyCached(spec)
 	require.NoError(t, err)
-	assert.Contains(t, result, "v0.0.3")
+	assert.Equal(t, binPath, result)
 
 	content, err := os.ReadFile(result)
 	require.NoError(t, err)
-	assert.Equal(t, []byte("bin-v0.0.3"), content)
-}
-
-func TestFindAnyCachedPrefersNewestModTimeOverVersionName(t *testing.T) {
-	cfg := testConfig(t)
-	spec := BinarySpec{Name: "test-binary"}
-
-	baseDir, err := cfg.cacheBaseDir(spec)
-	require.NoError(t, err)
-
-	oldPath := filepath.Join(baseDir, "v1.9.0", "test-binary")
-	newPath := filepath.Join(baseDir, "v1.10.0", "test-binary")
-	require.NoError(t, os.MkdirAll(filepath.Dir(oldPath), 0755))
-	require.NoError(t, os.MkdirAll(filepath.Dir(newPath), 0755))
-	require.NoError(t, os.WriteFile(oldPath, []byte("old-version"), 0755))
-	require.NoError(t, os.WriteFile(newPath, []byte("new-version"), 0755))
-
-	now := time.Now()
-	older := now.Add(-1 * time.Hour)
-	newer := now.Add(-1 * time.Minute)
-	require.NoError(t, os.Chtimes(oldPath, older, older))
-	require.NoError(t, os.Chtimes(newPath, newer, newer))
-
-	result, err := cfg.findAnyCached(spec)
-	require.NoError(t, err)
-	assert.Contains(t, result, "v1.10.0")
-
-	content, err := os.ReadFile(result)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("new-version"), content)
+	assert.Equal(t, []byte("cached-bin"), content)
 }
 
 func TestDownloadReturns404ForUnsupportedPlatform(t *testing.T) {
@@ -576,12 +851,58 @@ func TestDownloadReturns404ForUnsupportedPlatform(t *testing.T) {
 
 func TestFindAnyCachedNoCacheDir(t *testing.T) {
 	cfg := &resolverConfig{
-		cacheRoot:  filepath.Join(t.TempDir(), "nonexistent"),
-		httpClient: http.DefaultClient,
+		cacheRoot: filepath.Join(t.TempDir(), "nonexistent"),
 	}
 	spec := BinarySpec{Name: "nonexistent-binary-" + t.Name()}
 	_, err := cfg.findAnyCached(spec)
 	assert.Error(t, err)
+}
+
+func TestCacheBaseDirUsesEnvVar(t *testing.T) {
+	customDir := filepath.Join(t.TempDir(), "custom-cache")
+	t.Setenv("HCPCTL_CACHE_DIR", customDir)
+
+	cfg := &resolverConfig{}
+	spec := BinarySpec{Name: "test-binary"}
+
+	baseDir, err := cfg.cacheBaseDir(spec)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(customDir, "test-binary"), baseDir)
+}
+
+func TestCacheBaseDirExplicitRootOverridesEnvVar(t *testing.T) {
+	explicitDir := filepath.Join(t.TempDir(), "explicit-cache")
+	envDir := filepath.Join(t.TempDir(), "env-cache")
+	t.Setenv("HCPCTL_CACHE_DIR", envDir)
+
+	cfg := &resolverConfig{cacheRoot: explicitDir}
+	spec := BinarySpec{Name: "test-binary"}
+
+	baseDir, err := cfg.cacheBaseDir(spec)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(explicitDir, "test-binary"), baseDir)
+}
+
+func TestResolveCacheDirParameter(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+	}
+	asset := assetName(spec)
+
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v1.0.0/" + asset: tarGzData,
+	})
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+
+	customDir := t.TempDir()
+	result, err := Resolve(context.Background(), spec, "", customDir)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(result, customDir),
+		"binary should be cached in the provided cacheDir, got %q", result)
 }
 
 func TestResolveAutoDownloadZip(t *testing.T) {
@@ -638,39 +959,6 @@ func TestExtractZipBinaryNotFound(t *testing.T) {
 	err := extractZip(archivePath, "expected-binary", destPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found in zip archive")
-}
-
-func TestResolveAutoDownloadCleansOldVersions(t *testing.T) {
-	binaryContent := []byte("#!/bin/sh\necho hello\n")
-	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
-
-	spec := BinarySpec{
-		Name:         "test-binary",
-		AssetPattern: "{name}-{os}-{arch}.tar.gz",
-	}
-	asset := assetName(spec)
-
-	server := setupTestDownloadServer(t, map[string][]byte{
-		"/v1.0.0/" + asset: tarGzData,
-	})
-	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
-	cfg := testConfig(t)
-
-	// Pre-populate cache with an old version
-	baseDir, err := cfg.cacheBaseDir(spec)
-	require.NoError(t, err)
-	oldVersionDir := filepath.Join(baseDir, "v0.9.0")
-	require.NoError(t, os.MkdirAll(oldVersionDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(oldVersionDir, "test-binary"), []byte("old"), 0755))
-
-	_, err = cfg.resolve(context.Background(), spec, "")
-	require.NoError(t, err)
-
-	// Old version should be cleaned up
-	entries, err := os.ReadDir(baseDir)
-	require.NoError(t, err)
-	assert.Len(t, entries, 1)
-	assert.Equal(t, "v1.0.0", entries[0].Name())
 }
 
 func createTestZip(t *testing.T, binaryName string, content []byte) []byte {
