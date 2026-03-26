@@ -144,6 +144,9 @@ resourceGroups:
     template: templates/audit-logs-data-connection.bicep
     parameters: configurations/audit-logs-data-connection.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: regional
+      step: rpRegistration
     variables:
     - name: auditLogsEventHubId
       input:
