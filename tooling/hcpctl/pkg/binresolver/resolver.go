@@ -34,9 +34,9 @@ import (
 	"github.com/go-logr/logr"
 )
 
-// Source knows how to find the latest version and provide download URLs for a binary.
+// Get the latest tag name and provide download URLs for a binary.
 type Source interface {
-	LatestVersion(ctx context.Context, client *http.Client) (string, error)
+	LatestTagName(ctx context.Context, client *http.Client) (string, error)
 	DownloadURL(version, asset string) string
 }
 
@@ -83,7 +83,7 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 		return "", fmt.Errorf("no source configured for %q binary", spec.Name)
 	}
 
-	version, err := spec.Source.LatestVersion(ctx, cfg.httpClient)
+	version, err := spec.Source.LatestTagName(ctx, cfg.httpClient)
 	if err != nil {
 		logger.V(1).Info("failed to query for latest version, attempting cache fallback", "error", err)
 		cached, fallbackErr := cfg.findAnyCached(spec)

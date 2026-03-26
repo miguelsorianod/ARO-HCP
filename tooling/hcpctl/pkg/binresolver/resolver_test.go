@@ -38,12 +38,12 @@ import (
 )
 
 type testSource struct {
-	version    string // returned by LatestVersion
-	versionErr error  // if set, LatestVersion returns this error
+	version    string // returned by LatestTagName
+	versionErr error  // if set, LatestTagName returns this error
 	serverURL  string // base URL for downloads
 }
 
-func (s *testSource) LatestVersion(_ context.Context, _ *http.Client) (string, error) {
+func (s *testSource) LatestTagName(_ context.Context, _ *http.Client) (string, error) {
 	if s.versionErr != nil {
 		return "", s.versionErr
 	}

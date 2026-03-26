@@ -49,7 +49,7 @@ func (s *GitHubSource) downloadBase() string {
 	return "https://github.com"
 }
 
-func (s *GitHubSource) LatestVersion(ctx context.Context, client *http.Client) (string, error) {
+func (s *GitHubSource) LatestTagName(ctx context.Context, client *http.Client) (string, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", s.apiBase(), s.Owner, s.Repo)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

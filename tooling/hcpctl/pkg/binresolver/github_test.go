@@ -44,7 +44,7 @@ func TestGitHubTokenAuth(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "test-token-123")
 		receivedAuth = ""
 
-		version, err := source.LatestVersion(context.Background(), http.DefaultClient)
+		version, err := source.LatestTagName(context.Background(), http.DefaultClient)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", version)
 		assert.Equal(t, "Bearer test-token-123", receivedAuth)
@@ -54,7 +54,7 @@ func TestGitHubTokenAuth(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "")
 		receivedAuth = ""
 
-		version, err := source.LatestVersion(context.Background(), http.DefaultClient)
+		version, err := source.LatestTagName(context.Background(), http.DefaultClient)
 		require.NoError(t, err)
 		assert.Equal(t, "v1.0.0", version)
 		assert.Empty(t, receivedAuth)
