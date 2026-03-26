@@ -113,7 +113,7 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 			spec.Name, version, runtime.GOOS, runtime.GOARCH, "--"+spec.Name+"-binary", err)
 	}
 
-	if err := cfg.cleanOldVersions(spec, version); err != nil {
+	if err := cfg.cleanOldVersions(ctx, spec, version); err != nil {
 		logger.V(1).Info("failed to clean old cached versions", "error", err)
 	}
 
@@ -434,7 +434,9 @@ func (cfg *resolverConfig) cachedBinaryPath(spec BinarySpec, version string) (st
 	return filepath.Join(baseDir, version, binaryName), nil
 }
 
-func (cfg *resolverConfig) cleanOldVersions(spec BinarySpec, currentVersion string) error {
+func (cfg *resolverConfig) cleanOldVersions(ctx context.Context, spec BinarySpec, currentVersion string) error {
+	logger := logr.FromContextOrDiscard(ctx)
+
 	baseDir, err := cfg.cacheBaseDir(spec)
 	if err != nil {
 		return err
@@ -447,10 +449,18 @@ func (cfg *resolverConfig) cleanOldVersions(spec BinarySpec, currentVersion stri
 
 	var errs []error
 	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != currentVersion {
-			if err := os.RemoveAll(filepath.Join(baseDir, entry.Name())); err != nil {
-				errs = append(errs, fmt.Errorf("failed to remove old version %s: %w", entry.Name(), err))
-			}
+		if !entry.IsDir() || entry.Name() == currentVersion {
+			continue
+		}
+		// Only remove directories that contain the expected binary, so we don't remove directories out of scope
+		binaryPath := filepath.Join(baseDir, entry.Name(), spec.Name)
+		if _, err := os.Stat(binaryPath); err != nil {
+			continue
+		}
+		oldVersionPath := filepath.Join(baseDir, entry.Name())
+		logger.V(1).Info("removing old cached version", "version", entry.Name(), "path", oldVersionPath)
+		if err := os.RemoveAll(oldVersionPath); err != nil {
+			errs = append(errs, fmt.Errorf("failed to remove old version %s: %w", entry.Name(), err))
 		}
 	}
 

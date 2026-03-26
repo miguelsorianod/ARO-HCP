@@ -249,12 +249,52 @@ func TestCleanOldVersions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, entries, 3)
 
-	require.NoError(t, cfg.cleanOldVersions(spec, "v0.0.3"))
+	require.NoError(t, cfg.cleanOldVersions(context.Background(), spec, "v0.0.3"))
 
 	entries, err = os.ReadDir(baseDir)
 	require.NoError(t, err)
 	assert.Len(t, entries, 1)
 	assert.Equal(t, "v0.0.3", entries[0].Name())
+}
+
+func TestCleanOldVersionsPreservesDirsWithoutBinary(t *testing.T) {
+	cfg := testConfig(t)
+	spec := BinarySpec{Name: "test-binary"}
+
+	baseDir, err := cfg.cacheBaseDir(spec)
+	require.NoError(t, err)
+
+	// Create version directories WITH binaries that we will delete
+	for _, v := range []string{"v0.0.1", "v0.0.2", "v0.0.3"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, v), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(baseDir, v, "test-binary"), []byte("bin"), 0755))
+	}
+	// Create directories without the expected binary, we are testing if we should preserve these directories
+	for _, other := range []string{"DontDeleteMe", "randomCrap", "notes"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(baseDir, other), 0755))
+		// Write a different file, not the expected binary
+		require.NoError(t, os.WriteFile(filepath.Join(baseDir, other, "some-other-file"), []byte("data"), 0644))
+	}
+
+	entries, err := os.ReadDir(baseDir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 6)
+
+	require.NoError(t, cfg.cleanOldVersions(context.Background(), spec, "v0.0.3"))
+
+	entries, err = os.ReadDir(baseDir)
+	require.NoError(t, err)
+
+	assert.Len(t, entries, 4)
+
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	assert.Contains(t, names, "v0.0.3")
+	assert.Contains(t, names, "DontDeleteMe")
+	assert.Contains(t, names, "randomCrap")
+	assert.Contains(t, names, "notes")
 }
 
 func TestChecksumVerification(t *testing.T) {
