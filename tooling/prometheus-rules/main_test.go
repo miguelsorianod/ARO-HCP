@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/tooling/prometheus-rules/pkg/prometheusrules"
 )
 
 func setupTestFiles(tmpDir string, defaultEvaluationInterval string) error {
@@ -70,7 +72,7 @@ func TestPrometheusRules(t *testing.T) {
 			} {
 				require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 			}
-			err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
+			err := prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool")
 			require.NoError(t, err)
 
 			generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
@@ -98,7 +100,7 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 	} {
 		require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
-	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
+	err := prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool")
 	require.ErrorContains(t, err, "missing testfile")
 }
 
@@ -137,7 +139,7 @@ tests: []
 
 	// Run the generator - it should handle mixed rules based on file type
 	// Since we're using AlertingRules filename, it should process only alerts
-	err = runGenerator(filepath.Join(tmpDir, "config.yaml"), false)
+	err = prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool")
 	require.NoError(t, err)
 
 	// Verify the generated file exists and contains only alert rules

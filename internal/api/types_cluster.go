@@ -59,6 +59,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
 	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
+	ImageDigestMirrors      []ImageDigestMirror         `json:"imageDigestMirrors,omitempty"`
 }
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
@@ -213,20 +214,33 @@ type ClusterImageRegistryProfile struct {
 	State ClusterImageRegistryState `json:"state,omitempty"`
 }
 
+// ImageDigestMirror specifies image mirrors that can be used by cluster nodes
+// to pull content.
+type ImageDigestMirror struct {
+	Source  string   `json:"source,omitempty"`
+	Mirrors []string `json:"mirrors,omitempty"`
+
+	// MirrorSourcePolicy is not exposed in the customer-facing API as of
+	// v20251223preview, but is still recorded in CosmosDB so that, if we
+	// ever do expose this field, existing cluster documents in CosmosDB
+	// will not need to be migrated.
+	MirrorSourcePolicy MirrorSourcePolicy `json:"mirrorSourcePolicy,omitempty"`
+}
+
 // Creates an HCPOpenShiftCluster with any non-zero default values.
 func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftCluster {
 	return &HCPOpenShiftCluster{
 		TrackedResource: arm.NewTrackedResource(resourceID, azureLocation),
 		CustomerProperties: HCPOpenShiftClusterCustomerProperties{
 			Version: VersionProfile{
-				ChannelGroup: "stable",
+				ChannelGroup: DefaultClusterVersionChannelGroup,
 			},
 			Network: NetworkProfile{
 				NetworkType: NetworkTypeOVNKubernetes,
-				PodCIDR:     "10.128.0.0/14",
-				ServiceCIDR: "172.30.0.0/16",
-				MachineCIDR: "10.0.0.0/16",
-				HostPrefix:  23,
+				PodCIDR:     DefaultClusterNetworkPodCIDR,
+				ServiceCIDR: DefaultClusterNetworkServiceCIDR,
+				MachineCIDR: DefaultClusterNetworkMachineCIDR,
+				HostPrefix:  DefaultClusterNetworkHostPrefix,
 			},
 			API: CustomerAPIProfile{
 				Visibility: VisibilityPublic,
@@ -235,9 +249,9 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				OutboundType: OutboundTypeLoadBalancer,
 			},
 			Autoscaling: ClusterAutoscalingProfile{
-				MaxPodGracePeriodSeconds:    600,
-				MaxNodeProvisionTimeSeconds: 900,
-				PodPriorityThreshold:        -10,
+				MaxPodGracePeriodSeconds:    DefaultClusterMaxPodGracePeriodSeconds,
+				MaxNodeProvisionTimeSeconds: DefaultClusterMaxNodeProvisionTimeSeconds,
+				PodPriorityThreshold:        DefaultClusterPodPriorityThreshold,
 			},
 			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
 			Etcd: EtcdProfile{
@@ -249,6 +263,37 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				State: ClusterImageRegistryStateEnabled,
 			},
 		},
+	}
+}
+
+// EnsureDefaults fills in default values for fields that may be absent in
+// Cosmos documents created before the field was introduced, or on the create
+// and preflight paths where the internal type is constructed from external input.
+// Only fields where the zero value is never valid user input are safe to default
+// here (string enums). See the DDR at docs/api-version-defaults-and-storage.md.
+//
+// This method should be treated as append-only. Avoid removing defaulting
+// rules until all Cosmos documents have been verified to contain the field.
+func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
+	if len(cluster.CustomerProperties.Network.NetworkType) == 0 {
+		cluster.CustomerProperties.Network.NetworkType = NetworkTypeOVNKubernetes
+	}
+	if len(cluster.CustomerProperties.API.Visibility) == 0 {
+		cluster.CustomerProperties.API.Visibility = VisibilityPublic
+	}
+	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
+		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer
+	}
+	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
+		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryStateEnabled
+	}
+	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
+		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+	}
+	for i := range cluster.CustomerProperties.ImageDigestMirrors {
+		if len(cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy) == 0 {
+			cluster.CustomerProperties.ImageDigestMirrors[i].MirrorSourcePolicy = MirrorSourcePolicyAllowContactingSource
+		}
 	}
 }
 

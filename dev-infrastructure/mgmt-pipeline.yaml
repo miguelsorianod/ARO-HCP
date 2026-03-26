@@ -45,6 +45,16 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: auditLogs
+  resourceGroup: '{{ .auditLogsEventHub.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-audit-logs-eventhub.bicep
+    parameters: configurations/output-audit-logs-eventhub.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -209,7 +219,7 @@ resourceGroups:
         name: maestroEventGridNamespaceId
     - name: auditLogsEventHubAuthRuleId
       input:
-        resourceGroup: kusto
+        resourceGroup: auditLogs
         step: output
         name: auditLogsEventHubAuthRuleId
     dependsOn:
@@ -229,20 +239,26 @@ resourceGroups:
       - "DeploymentScriptExceededMaxAllowedTime"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
-  # - name: delete-non-swift-user-nodepools
-  #   aksCluster: '{{ .mgmt.aks.name }}'
-  #   action: Shell
-  #   command: ./scripts/delete-user-nodepools.sh
-  #   variables:
-  #   - name: CLUSTER_NAME
-  #     configRef: mgmt.aks.name
-  #   - name: RESOURCE_GROUP
-  #     configRef: mgmt.rg
-  #   - name: POOL_NAME_PATTERN
-  #     value: 'user[0-9]+'
-  #   dependsOn:
-  #   - resourceGroup: management
-  #     step: cluster
+  - name: delete-non-swift-user-nodepools
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Shell
+    command: ./scripts/delete-user-nodepools.sh
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: mgmt.aks.name
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: POOL_NAME_PATTERN
+      value: 'user[0-9]+'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true

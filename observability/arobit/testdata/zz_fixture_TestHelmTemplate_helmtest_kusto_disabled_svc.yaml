@@ -27,7 +27,6 @@ data:
     @INCLUDE /forwarder/etc/input.conf
 
     @INCLUDE /forwarder/etc/filter.conf
-    @INCLUDE /forwarder/etc/output-mdsd.conf
   service.conf: |
     [SERVICE]
         Flush                     1
@@ -50,24 +49,13 @@ data:
         HC_Retry_Failure_Count    5
         HC_Period                 60
   parsers_custom.conf: |
-    # Previously, docker parser would parse the container log as record["log"].
-    # With the default cri parser, the container log will be parsed as record["message"].
-    # For backward compat with docker implementation, use the following parser.
-    [PARSER]
-        Name        cri-o
-        Format      regex
-        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
-        Time_Key    time
-        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
-        Time_Keep   On
-    
     [PARSER]
         Name        containerlogs
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
-    
+
   input.conf: |
     [INPUT]
         Name              tail
@@ -75,7 +63,7 @@ data:
         Tag               kubernetes.*
         Path              /var/log/containers/*.log
         Exclude_Path      /var/log/containers/*log-tailer*,/var/log/containers/*geneva-logger*,/var/log/containers/*arobit*
-        Parser            cri-o
+        multiline.parser  cri
         # Docker_Mode       On
         # Parser            none
         DB                /var/log/flb-tail.db
@@ -142,13 +130,6 @@ data:
         DB              /var/fluent-bit/flb-storage/flb-systemdb.db
   filter.conf: |
     [FILTER]
-        Name   lua
-        Alias  lua.reassemble_cri
-        Match  kubernetes.var.log.containers.*
-        script /forwarder/etc/reassemble_cri.lua
-        call   reassemble_cri
-    
-    [FILTER]
         Name modify
         Match systemd.*
         Add environment dev
@@ -170,25 +151,6 @@ data:
         Annotations         Off
         K8S-Logging.Exclude On
         Buffer_Size         64k
-    [FILTER]
-        Name            rewrite_tag
-        Alias           filter.namespace_router
-        Match           kubernetes.var.log.containers.*
-        Rule            $kubernetes['namespace_name'] ^ocm-.* mdsd-ocm.logs true
-        Rule            $kubernetes['namespace_name'] ^(?!ocm-).* mdsd-other.logs true
-        Emitter_Name    re_emitted_namespace_router_mdsd
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-ocm.logs
-        Operation     lift
-        Nested_under  kubernetes
-
-    [FILTER]
-        Name          nest
-        Match         mdsd-other.logs
-        Operation     lift
-        Nested_under  kubernetes
 
     [FILTER]
         Name            rewrite_tag
@@ -199,7 +161,6 @@ data:
         Emitter_Name    re_emitted_namespace_router
 
     [FILTER]
-        # Other logs are keept, because want to send them to mdsd as well
         Name            rewrite_tag
         Alias           filter.container_name_router
         Match           other.logs
@@ -300,46 +261,6 @@ data:
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
         buffer_dir /var/fluent-bit/kusto
-
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
-    [OUTPUT]
-        Name  prometheus_exporter
-        Alias exporter.fluentbit
-        Match metrics.fluentbit
-        Host  0.0.0.0
-        Port  9090
-  output-mdsd-ocm.conf: |
-    # Forward OCM namespace logs (ocm-.* pattern) to another mdsd instance
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.ocm
-        Match mdsd-ocm.logs
-        Host  127.0.0.1
-        Port  5002
-        Tag   akskubesystem
-  reassemble_cri.lua: |
-    local reassemble_state = {}
-    function reassemble_cri(tag, timestamp, record)
-      local reassemble_key = tag
-      -- if partial line, accumulate
-      if record.logtag == 'P' then
-        reassemble_state[reassemble_key] = (reassemble_state[reassemble_key] or "") .. (record.log or "")
-        return -1, 0, 0
-      end
-      -- otherwise, it's a full line, concatenate with accumulated partial lines if any
-      record.log = (reassemble_state[reassemble_key] or "") .. (record.log or "")
-      reassemble_state[reassemble_key] = nil
-      return 1, timestamp, record
-    end
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -435,7 +356,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 1503254671ebe7bc8597270cd425583de8efb65020a7b827b262ba0e98d4bfb0
+        checksum/configmap: b834b25aa9cbf2eb38cadecdb0de78298cdb57d8935aeb40dae1835ca471f52e
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -479,7 +400,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
             successThreshold: 1
-          securityContext: 
+          securityContext:
             privileged: false
             allowPrivilegeEscalation: false
             runAsUser: 0
@@ -502,95 +423,6 @@ spec:
               readOnly: true
             - name: kusto
               mountPath: /var/fluent-bit/kusto
-        - name: mdsd
-          image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
-          imagePullPolicy: 'IfNotPresent'
-          command:
-              - /start_mdsd.sh
-          env:
-            - name: MONITORING_GCS_AUTH_ID
-              value: ''
-            - name: MONITORING_GCS_AUTH_ID_TYPE
-              value: AuthKeyVault
-            - name: MDSD_AKV_CERTIFICATE_STORE_PATH
-              value: /geneva/geneva_auth
-            - name: MONITORING_CONFIG_VERSION
-              value: '1'
-            - name: MONITORING_GCS_ACCOUNT
-              value: 'placeholder'
-            - name: MONITORING_GCS_ENVIRONMENT
-              value: 'Test'
-            - name: MONITORING_GCS_NAMESPACE
-              value: ''
-            - name: MONITORING_GCS_REGION
-              value: 'westus3'
-            - name: DOCKER_LOGGING
-              value: 'true'
-            - name: FLUENTD_PORT
-              value: '5001'
-            - name: GCS_AUTOMATIC_CONFIGURATION
-              value: '1'
-            - name: GCS_AUTOMATIC_CONFIG_RUNTIME
-              value: '-A'
-            - name: MDSD_BACKPRESSURE_MONITOR_FREQ_SEC
-              value: '5'
-            - name: MDSD_BACKPRESSURE_MONITOR_MEMORY_THRESHOLD_IN_MB
-              value: '1000'
-            - name: MDSD_COMPRESSION_ALGORITHM
-              value: 'lz4'
-            - name: MDSD_COMPRESSION_LEVEL
-              value: '4'
-            - name: MDSD_DAEMON_TEMPORARY_ELEVATION_DISABLED
-              value: 'true'
-            - name: MDSD_DEBUG_LOG_FLAGS
-              value: '-T 0x00'
-            - name: MDSD_LOG_OPTIONS
-              value: '-D'
-            - name: MDSD_MSGPACK_ARRAY_SIZE_ITEMS
-              value: '10480000'
-            - name: MDSD_MSGPACK_MAP_SIZE_ITEMS
-              value: '10480000'
-            - name: MDSD_MSGPACK_NESTING_LEVEL
-              value: '10'
-            - name: MDSD_MSGPACK_SEND_ACK
-              value: '0'
-            - name: MDSD_MSGPACK_SORT_COLUMNS
-              value: '1'
-            - name: MDSD_PORT
-              value: '0'
-            - name: MDSD_TCMALLOC_RELEASE_FREQ_SEC
-              value: '1'
-            - name: MDSD_USE_LOCAL_PERSISTENCY
-              value: 'false'
-            - name: MONITORING_MAX_EVENT_RATE
-              value: '100000'
-            - name: MONITORING_ROLE
-              value: 'hcp-underlay-dev-westus3-svc'
-            - name: MONITORING_TENANT
-              value: 'westus3'
-          lifecycle: 
-            preStop:
-              exec:
-                command:
-                - "/bin/sleep"
-                - "60"
-          securityContext: 
-            privileged: false
-            allowPrivilegeEscalation: false
-            runAsUser: 0
-            runAsGroup: 0
-            capabilities:
-              add: []
-              drop: []
-          volumeMounts:
-            - name: mdsd-run
-              mountPath: /var/run/mdsd/
-            - name: cacrt-host
-              mountPath: /etc/ssl/certs/ca-certificates.crt
-              readOnly: true
-            - mountPath: /geneva/geneva_auth/
-              name: geneva-certs
-              readOnly: true
       tolerations:
       - effect: NoSchedule
         key: infra
@@ -618,39 +450,10 @@ spec:
           hostPath:
             type: File
             path: /etc/ssl/certs/ca-certificates.crt
-        - name: mdsd-run
-          emptyDir: {}
         - name: flb-config
           configMap:
             name: arobit-forwarder
             defaultMode: 0755
-        - name: geneva-certs
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: arobit-secretprovider
----
-# Source: arobit/templates/forwarder-secretprovider.yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: arobit-secretprovider
-  namespace: 'arobit'
-spec:
-  provider: azure
-  parameters:
-    clientID: '__msiClientId__'
-    cloudName: 'AzurePublicCloud'
-    keyvaultName: "aro-hcp-dev-svc-kv"
-    objects: |
-      array:
-        - |
-          objectName: "rplogs"
-          objectAlias: "gcscert.pem"
-          objectType: secret
-    tenantId: "__tenantId__"
-    usePodIdentity: "false"
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1

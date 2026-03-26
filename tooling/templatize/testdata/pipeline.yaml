@@ -45,6 +45,8 @@ resourceGroups:
       configRef: parentZone
     childZone:
       configRef: childZone
+    deploymentMode:
+      value: "Incremental"
     dependsOn:
     - resourceGroup: regional
       step: deploy

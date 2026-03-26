@@ -35,6 +35,21 @@ var (
 	)
 )
 
+// OsDiskType represents the type of OS disk.
+type OsDiskType string
+
+const (
+	OsDiskTypeManaged   OsDiskType = "Managed"
+	OsDiskTypeEphemeral OsDiskType = "Ephemeral"
+)
+
+var (
+	ValidOsDiskTypes = sets.New[OsDiskType](
+		OsDiskTypeManaged,
+		OsDiskTypeEphemeral,
+	)
+)
+
 // NetworkType represents an OpenShift cluster network plugin.
 type NetworkType string
 
@@ -228,5 +243,19 @@ var (
 		UsernameClaimPrefixPolicyPrefix,
 		UsernameClaimPrefixPolicyNoPrefix,
 		UsernameClaimPrefixPolicyNone,
+	)
+)
+
+type MirrorSourcePolicy string
+
+const (
+	// MirrorSourcePolicyAllowContactingSource - allows falling back to the specified
+	// repository in the pull spec if the image pull from the mirror list fails
+	MirrorSourcePolicyAllowContactingSource MirrorSourcePolicy = "AllowContactingSource"
+)
+
+var (
+	ValidMirrorSourcePolicies = sets.New[MirrorSourcePolicy](
+		MirrorSourcePolicyAllowContactingSource,
 	)
 )

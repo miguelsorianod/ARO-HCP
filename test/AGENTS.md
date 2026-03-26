@@ -93,3 +93,53 @@
 * **Descriptive Names:** Use descriptive names for test files, test cases, bicep/arm deployments, and functions.
 * **Test case description:** Maintain descriptions of specifications and tests as informative and comprehensive complete sentences.
 * **Development environment test cases:** Ensure new negative test cases produce the same result in development and higher environments by running them in both. Do not use the label `AroRpApiCompatible` if the test case fails in the development environment.
+
+## Running or Filtering Specific E2E Tests
+
+This project does NOT use Ginkgo's Focus (`FDescribe`, `FIt`, `FEntry`) to select tests.
+
+### Local: CLI-based filtering
+
+Use the `aro-hcp-tests` binary to run individual tests or suites locally.
+Build it first with `make -C test`, then:
+
+```bash
+# List available tests
+./test/aro-hcp-tests list | jq '.[].name'
+
+# Run a single test by name
+./test/aro-hcp-tests run-test "Customer should be able to create an HCP cluster using bicep templates"
+
+# Run a test suite
+./test/aro-hcp-tests run-suite "integration/parallel"
+```
+
+See `test/e2e/README.md` for full details on environment setup and available suites.
+
+### CI / PR validation: MustFilter in main.go
+
+To run specific tests in a PR against Int, Stage, or Prod environments, use
+`specs.MustFilter()` in `test/cmd/aro-hcp-tests/main.go` with CEL expressions.
+This is the only way to select tests for CI runs in higher environments.
+
+Locate the commented line and uncomment/modify it:
+
+```go
+// specs = specs.MustFilter([]string{`name.contains("filter")`})
+```
+
+Filter examples:
+
+```go
+// Filter by name
+specs = specs.MustFilter([]string{`name.contains("z-stream upgrade")`})
+
+// Filter by label
+specs = specs.MustFilter([]string{`labels.exists(l, l=="Positivity:Positive")`})
+
+// Combine filters (name AND label)
+specs = specs.MustFilter([]string{`name.contains("Cluster") && labels.exists(l, l=="Importance:Critical")`})
+```
+
+**WARNING**: Always revert `MustFilter` edits before merging. Leaving a filter
+in place silently skips tests in CI.

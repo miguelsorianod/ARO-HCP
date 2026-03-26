@@ -176,7 +176,7 @@ func TestConvertCStoHCPOpenShiftCluster(t *testing.T) {
 			name: "converts stable version from CS to RP (X.Y.Z to X.Y)",
 			ocmClusterTweaks: arohcpv1alpha1.NewCluster().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.7").
+					ID("openshift-v4.19.25").
 					ChannelGroup("stable")),
 			hcpClusterTweaks: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
@@ -309,7 +309,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.7").
+					ID("openshift-v4.19.25").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -350,7 +350,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.7").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.25").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.20",
@@ -360,7 +360,17 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.15").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.20.16").ChannelGroup("stable"))),
+		},
+		{
+			name: "with version 4.21",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Version: api.VersionProfile{ID: "4.21", ChannelGroup: "stable"},
+				},
+			},
+			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.5").ChannelGroup("stable"))),
 		},
 	}
 
@@ -465,10 +475,12 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.19.7").
+			ID("openshift-v4.19.25").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-			State(csImageRegistryStateEnabled))
+			State(csImageRegistryStateEnabled)).
+		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+			ImageDigestMirrors())
 }
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
@@ -478,7 +490,9 @@ func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api
 				OSDisk: api.OSDiskProfile{
 					// SizeGiB is initialized to 64 to reflect the default value set by SetDefaultValuesNodePool
 					// in the real API flow. This ensures tests match production behavior where SizeGiB is never nil.
-					SizeGiB: ptr.To(int32(64)),
+					SizeGiB:                ptr.To(int32(64)),
+					DiskStorageAccountType: api.DiskStorageAccountTypePremium_LRS,
+					DiskType:               api.OsDiskTypeManaged,
 				},
 			},
 		},
@@ -504,7 +518,8 @@ func getBaseCSNodePoolBuilder() *arohcpv1alpha1.NodePoolBuilder {
 			).
 			OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
 				SizeGibibytes(64).
-				StorageAccountType(""),
+				StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)).
+				Persistence("persistent"),
 			),
 		).
 		Subnet("").
@@ -561,7 +576,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.19.7").
+					ID("openshift-v4.19.25").
 					ChannelGroup("stable")),
 		},
 		{
@@ -593,6 +608,28 @@ func TestBuildCSNodePool(t *testing.T) {
 				Version(arohcpv1alpha1.NewVersion().
 					ID("openshift-v4.19.0-0.nightly-2025-01-01-nightly").
 					ChannelGroup("nightly")),
+		},
+		{
+			name: "converts ephemeral disk type from RP to CS",
+			hcpNodePool: getHCPNodePoolResource(
+				func(hsc *api.HCPOpenShiftClusterNodePool) {
+					hsc.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				},
+			),
+			expectedCSNodePool: getBaseCSNodePoolBuilder().
+				AzureNodePool(arohcpv1alpha1.NewAzureNodePool().
+					ResourceName("").
+					VMSize("").
+					EncryptionAtHost(
+						arohcpv1alpha1.NewAzureNodePoolEncryptionAtHost().
+							State(csEncryptionAtHostStateDisabled),
+					).
+					OsDisk(arohcpv1alpha1.NewAzureNodePoolOsDisk().
+						SizeGibibytes(64).
+						StorageAccountType(string(api.DiskStorageAccountTypePremium_LRS)).
+						Persistence("ephemeral"),
+					),
+				),
 		},
 	}
 	for _, tc := range testCases {
@@ -822,7 +859,8 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 		Properties(map[string]string{}).
 		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-				Mode(csCIDRBlockAllowAccessModeAllowAll))))
+				Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors())
 }
 
 func TestBuildCSCluster(t *testing.T) {
@@ -1069,6 +1107,56 @@ func TestBuildCSCluster(t *testing.T) {
 					"hosted_cluster_single_replica": "true",
 					"hosted_cluster_size_override":  "true",
 				}),
+		},
+		{
+			name: "CREATE - sets some image digest mirrors",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					ImageDigestMirrors: []api.ImageDigestMirror{
+						{
+							Source:  "sourceRegistry1",
+							Mirrors: []string{"mirrorRegistry1a", "mirrorRegistry1b"},
+						},
+						{
+							Source:  "sourceRegistry2",
+							Mirrors: []string{"mirrorRegistry2a", "mirrorRegistry2b"},
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+					ImageDigestMirrors(
+						arohcpv1alpha1.NewImageMirror().
+							Source("sourceRegistry1").
+							Mirrors("mirrorRegistry1a", "mirrorRegistry1b"),
+						arohcpv1alpha1.NewImageMirror().
+							Source("sourceRegistry2").
+							Mirrors("mirrorRegistry2a", "mirrorRegistry2b"),
+					),
+				),
+		},
+		{
+			name:       "UPDATE - clears all image digest mirrors",
+			hcpCluster: &api.HCPOpenShiftCluster{},
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := getBaseCSClusterBuilder(false).
+					RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
+						ImageDigestMirrors(
+							arohcpv1alpha1.NewImageMirror().
+								Source("sourceRegistry1").
+								Mirrors("mirrorRegistry1a", "mirrorRegistry1b"),
+							arohcpv1alpha1.NewImageMirror().
+								Source("sourceRegistry2").
+								Mirrors("mirrorRegistry2a", "mirrorRegistry2b"),
+						),
+					).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			expectedCSCluster: getBaseCSClusterBuilder(true),
 		},
 	}
 

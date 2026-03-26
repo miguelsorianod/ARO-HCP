@@ -5,10 +5,11 @@ go 1.25.5
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/config v0.0.0-20260309172949-8176eed3f66a
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260309172949-8176eed3f66a
+	github.com/Azure/ARO-Tools/config v0.0.0-20260324125451-f78af490048c
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260324125451-f78af490048c
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0
@@ -28,8 +29,10 @@ require (
 	github.com/openshift/api v0.0.0-20260130140113-71e91db96ffc
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
+	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
+	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
@@ -54,13 +57,13 @@ require (
 	contrib.go.opencensus.io/exporter/ocagent v0.7.1-0.20200907061046-05415f1de66d // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260309172949-8176eed3f66a // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260309172949-8176eed3f66a // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260309172949-8176eed3f66a // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260309172949-8176eed3f66a // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260309172949-8176eed3f66a // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260309172949-8176eed3f66a // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260309172949-8176eed3f66a // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260324125451-f78af490048c // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260324125451-f78af490048c // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260324125451-f78af490048c // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260324125451-f78af490048c // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260324125451-f78af490048c // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260324125451-f78af490048c // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260324125451-f78af490048c // indirect
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 // indirect
@@ -211,7 +214,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.453 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.498 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -238,7 +240,6 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tektoncd/pipeline v1.6.0 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
@@ -326,6 +327,8 @@ replace github.com/Azure/ARO-HCP/tooling/templatize => ../tooling/templatize
 replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
 
 replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+
+replace github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 // this is the OCP fork of ginkgo that allows listing and inspecting the tests to be compatible with https://github.com/openshift-eng/openshift-tests-extension
 replace github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54

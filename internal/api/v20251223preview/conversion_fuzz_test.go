@@ -40,6 +40,11 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		func(j *azcorearm.ResourceID, c randfill.Continue) {
 			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
 		},
+		func(j *api.ImageDigestMirror, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// MirrorSourcePolicy does not roundtrip through the external type because it is purely an internal detail
+			j.MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
+		},
 		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
@@ -72,9 +77,10 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
-			// we cannot properly roundtrip a zero value here, so nil when that happens
-			zeroValueKMS := api.KmsEncryptionProfile{}
-			if j.Kms != nil && *j.Kms == zeroValueKMS {
+			// Kms cannot roundtrip if ActiveKey has neither Name nor Version,
+			// because normalizeCustomerManaged correctly skips creating a Kms
+			// entry when there is no key identifier.
+			if j.Kms != nil && j.Kms.ActiveKey.Name == "" && j.Kms.ActiveKey.Version == "" {
 				j.Kms = nil
 			}
 		},
@@ -120,7 +126,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	v := version{}
 	externalObj := v.NewHCPOpenShiftCluster(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -138,7 +144,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterNodePool(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected
@@ -156,7 +162,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	v := version{}
 	externalObj := v.NewHCPOpenShiftClusterExternalAuth(original)
 
-	roundTrippedObj, err := externalObj.ConvertToInternal()
+	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
 	// we compare the JSON here because many of these types have private fields that cannot be introspected

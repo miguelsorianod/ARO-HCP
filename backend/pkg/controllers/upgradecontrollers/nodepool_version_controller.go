@@ -179,8 +179,8 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	//   	- upgradepolicy.targetVersion: if the policy has started this version is applying to the nodepool
 	//   - In Hypershift
 	//		- .Status.Version: shows the latest applied version https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/nodepool_types.go#L246-L251
+	logger := utils.LoggerFromContext(ctx)
 	if !slices.Equal(oldActiveVersions, existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) {
-		logger := utils.LoggerFromContext(ctx)
 		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions)
 		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
 		if err != nil {
@@ -211,6 +211,8 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
+
+	logger.Info("Updated ServiceProviderNodePool with new desired version", "desiredVersion", customerDesiredVersion.String())
 
 	return nil
 }
@@ -258,6 +260,9 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 		return fmt.Errorf("customerDesiredVersion is nil, cannot evaluate upgrade")
 	}
 
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("Validating desired nodepool version", "desiredVersion", desiredVersion.String(), "channelGroup", channelGroup)
+
 	// Get all active versions from ServiceProviderNodePool
 	nodePoolActiveVersions := spNodePool.Status.NodePoolVersion.ActiveVersions
 
@@ -267,11 +272,10 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 	}
 
 	// Get the lowest and highest node pool active versions
-	lowestNodePoolVersion := findLowestNodePoolVersion(nodePoolActiveVersions)
-	highestNodePoolVersion := findHighestNodePoolVersion(nodePoolActiveVersions)
+	lowestNodePoolVersion, highestNodePoolVersion := api.FindNodePoolVersionBounds(nodePoolActiveVersions)
 
 	// Get the lowest control plane version (most restrictive upper bound)
-	lowestControlPlaneVersion := findLowestControlPlaneVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	lowestControlPlaneVersion := api.FindLowestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
 	// Node pool version >= highest active version (no partial downgrades)
 	if highestNodePoolVersion != nil && desiredVersion.LT(*highestNodePoolVersion) {
@@ -333,35 +337,6 @@ func isVersionInActiveVersions(version *semver.Version, activeVersions []api.HCP
 		}
 	}
 	return false
-}
-
-// findLowestNodePoolVersion returns the lowest (oldest) version from the node pool active versions.
-// ActiveVersions is ordered with the most recent version first, so the lowest is the last element.
-// Returns nil if no versions are present.
-func findLowestNodePoolVersion(activeVersions []api.HCPNodePoolActiveVersion) *semver.Version {
-	if len(activeVersions) == 0 {
-		return nil
-	}
-	return activeVersions[len(activeVersions)-1].Version
-}
-
-// findHighestNodePoolVersion returns the highest (most recent) version from the node pool active versions.
-// This represents the current upgrade target. Desired version must be >= this to prevent partial downgrades.
-// ActiveVersions is ordered with the most recent version first, so the highest is the first element.
-// Returns nil if no versions are present.
-func findHighestNodePoolVersion(activeVersions []api.HCPNodePoolActiveVersion) *semver.Version {
-	if len(activeVersions) == 0 {
-		return nil
-	}
-	return activeVersions[0].Version
-}
-
-// findLowestControlPlaneVersion returns the lowest version from the list of control plane active versions.
-func findLowestControlPlaneVersion(activeVersions []api.HCPClusterActiveVersion) *semver.Version {
-	if len(activeVersions) == 0 {
-		return nil
-	}
-	return activeVersions[len(activeVersions)-1].Version
 }
 
 // validateUpgradePathAvailable checks that an upgrade path exists from current to desired version.
