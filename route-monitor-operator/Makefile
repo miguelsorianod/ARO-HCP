@@ -66,14 +66,6 @@ update-digests-in-config: $(YAMLFMT)
 	../tooling/yamlwrap/yamlwrap unwrap --input ../config/config.yaml
 .PHONY: update-digests-in-config
 
-delete-custom-resources:
-	./delete-custom-resources.sh
-.PHONY: delete-custom-resources
-
-delete-helm-release:
-	./delete-helm-release.sh
-.PHONY: delete-helm-release
-
-delete-ingresscontroller-hack:
-	./delete-ingresscontroller-hack.sh
-.PHONY: delete-ingresscontroller-hack
+delete-rmo:
+	./delete-rmo.sh
+.PHONY: delete-rmo
