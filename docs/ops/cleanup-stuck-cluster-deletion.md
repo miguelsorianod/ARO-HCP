@@ -9,6 +9,7 @@ This document provides a systematic procedure for manually cleaning up ARO HCP c
 - Access to the Management Cluster where the HCP cluster is hosted (via `hcpctl mc breakglass <mc-name>`)
 - Access to the Service Cluster (via `hcpctl sc breakglass <svc-name>`)
 - `kubectl` access configured with appropriate permissions
+- `jq` installed locally (and `curl` if you use the provided API examples)
 - Cluster ID or cluster name of the stuck cluster
 
 ## Understanding the Resource Hierarchy
@@ -159,8 +160,15 @@ kubectl get namespace <namespace> -o json | jq '.status'
 # Check Hypershift operator logs
 kubectl logs -n hypershift deployment/operator --tail=50 | grep <cluster-name-or-id>
 
-# Check resources with finalizers in a namespace
+# Check resources with finalizers in a namespace (core/built-in kinds only)
 kubectl get all -n <namespace> -o json | \
+  jq '[.items[] | select(.metadata.finalizers != null) |
+  {kind, name: .metadata.name, finalizers: .metadata.finalizers}]'
+
+# NOTE: `kubectl get all` does NOT return many namespaced CRDs (including common blockers
+# like HostedControlPlane and CAPI Cluster). Also check key Hypershift/CAPI CRDs:
+kubectl get hostedclusters.hypershift.openshift.io,hostedcontrolplanes.hypershift.openshift.io,clusters.cluster.x-k8s.io \
+  -n <namespace> -o json | \
   jq '[.items[] | select(.metadata.finalizers != null) |
   {kind, name: .metadata.name, finalizers: .metadata.finalizers}]'
 ```
@@ -245,14 +253,10 @@ kubectl exec -n maestro deployment/maestro -c maestro-server -- sh -c \
 Only after ensuring the source (CS/Maestro) won't recreate resources, remove finalizers **bottom-up** on the management cluster:
 
 ```bash
-# 1. Remove HostedCluster finalizer
-kubectl patch hostedcluster <name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
-  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
-
-# 2. If CP namespace is stuck Terminating, check what's blocking it:
+# 1. Check what's blocking the CP namespace (if Terminating):
 kubectl get namespace <cp-namespace> -o json | jq '.status.conditions[] | select(.type == "NamespaceContentRemaining")'
 
-# 3. Remove finalizers from blocking resources (common ones):
+# 2. Remove finalizers from CP namespace resources (bottom-up, leaf resources first):
 # Deployments with hypershift.openshift.io/component-finalizer
 kubectl patch deployment <name> -n <cp-namespace> \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
@@ -263,6 +267,10 @@ kubectl patch clusters.cluster.x-k8s.io <name> -n <cp-namespace> \
 
 # HostedControlPlane with hypershift.openshift.io/finalizer
 kubectl patch hostedcontrolplanes.hypershift.openshift.io <name> -n <cp-namespace> \
+  --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
+
+# 3. Remove HostedCluster finalizer (only after CP namespace resources are cleared)
+kubectl patch hostedcluster <name> -n ocm-${CLUSTER_PREFIX}-${CLUSTER_ID} \
   --type=json -p='[{"op": "replace", "path": "/metadata/finalizers", "value": []}]'
 
 # 4. Remove ManifestWork finalizers

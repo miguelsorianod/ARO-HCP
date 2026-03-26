@@ -31,7 +31,7 @@ These are REST APIs accessed via `kubectl exec`, not CRDs:
   - List clusters: `GET /api/clusters_mgmt/v1/clusters`
   - Get cluster: `GET /api/clusters_mgmt/v1/clusters/<id>`
   - Delete cluster: `DELETE /api/aro_hcp/v1alpha1/clusters/<id>` (MUST use `aro_hcp` endpoint, NOT `clusters_mgmt`)
-  - Container name: default (single container)
+  - Container name: `clusters-service-server` (use with `kubectl exec -c clusters-service-server`)
 
 - **Maestro Server** (ns: `maestro`, deployment: `maestro`, port 8000):
   - List resource bundles: `GET /api/maestro/v1/resource-bundles`
