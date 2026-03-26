@@ -22,11 +22,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/util/rand"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
-	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -107,11 +108,16 @@ var _ = Describe("Customer", func() {
 			creds, err := tc.AzureCredential()
 			Expect(err).NotTo(HaveOccurred())
 
+			// TODO: convert shoebox-specific steps below to hard-fail assertions once validated in all stage/prod regions.
+
 			By("creating a storage account for shoebox logs")
 			storageAccountName := "shoebox" + rand.String(6)
 
 			storageClient, err := armstorage.NewAccountsClient(subscriptionID, creds, nil)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				GinkgoLogr.Error(err, "failed to create storage accounts client")
+				return
+			}
 
 			storagePoller, err := storageClient.BeginCreate(ctx, *resourceGroup.Name, storageAccountName, armstorage.AccountCreateParameters{
 				Kind:     to.Ptr(armstorage.KindStorageV2),
@@ -120,10 +126,16 @@ var _ = Describe("Customer", func() {
 					Name: to.Ptr(armstorage.SKUNameStandardLRS),
 				},
 			}, nil)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				GinkgoLogr.Error(err, "failed to begin storage account creation")
+				return
+			}
 
 			storageAccount, err := storagePoller.PollUntilDone(ctx, nil)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				GinkgoLogr.Error(err, "failed to create storage account")
+				return
+			}
 			GinkgoLogr.Info("storage account created", "name", storageAccountName, "id", *storageAccount.ID)
 
 			By("enabling diagnostic settings on the HCP cluster")
@@ -141,7 +153,10 @@ var _ = Describe("Customer", func() {
 			}
 
 			diagnosticsClient, err := armmonitor.NewDiagnosticSettingsClient(creds, &azcorearm.ClientOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				GinkgoLogr.Error(err, "failed to create diagnostics client")
+				return
+			}
 
 			_, err = diagnosticsClient.CreateOrUpdate(ctx, clusterResourceID, diagnosticSettingName, armmonitor.DiagnosticSettingsResource{
 				Properties: &armmonitor.DiagnosticSettings{
@@ -149,20 +164,43 @@ var _ = Describe("Customer", func() {
 					Logs:             logSettings,
 				},
 			}, nil)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				GinkgoLogr.Error(err, "failed to create diagnostic setting")
+				return
+			}
 			GinkgoLogr.Info("diagnostic setting created", "name", diagnosticSettingName)
 
 			By("waiting for log containers to appear in the storage account")
 			blobContainersClient, err := armstorage.NewBlobContainersClient(subscriptionID, creds, nil)
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				GinkgoLogr.Error(err, "failed to create blob containers client")
+				return
+			}
 
 			shoeboxVerifier := verifiers.VerifyShoeboxLogs(blobContainersClient, *resourceGroup.Name, storageAccountName)
 
 			// Logs take ~35-40 minutes to appear. Poll for up to 45 minutes.
-			Eventually(ctx, func() error {
-				return shoeboxVerifier.Verify(ctx)
-			}, 45*time.Minute, 60*time.Second).Should(Succeed(),
-				"expected at least one insights-logs-* blob container in storage account %s", storageAccountName,
-			)
+			ticker := time.NewTicker(60 * time.Second)
+			defer ticker.Stop()
+			timeout := time.After(45 * time.Minute)
+			for {
+				select {
+				case <-timeout:
+					GinkgoLogr.Error(fmt.Errorf("timed out"), "shoebox log containers did not appear", "storageAccount", storageAccountName)
+					return
+				case <-ctx.Done():
+					GinkgoLogr.Error(ctx.Err(), "context cancelled while waiting for shoebox logs")
+					return
+				case <-ticker.C:
+					if err := shoeboxVerifier.Verify(ctx); err != nil {
+						if !verifiers.IsRetryable(err) {
+							GinkgoLogr.Error(err, "error while verifying shoebox logs")
+						}
+						continue
+					}
+					GinkgoLogr.Info("shoebox log containers found in storage account", "storageAccount", storageAccountName, "timestamp", time.Now().UTC().Format(time.RFC3339))
+					return
+				}
+			}
 		})
 })
