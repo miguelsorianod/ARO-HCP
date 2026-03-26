@@ -6,8 +6,8 @@ set -o pipefail
 
 # Usage: [DRY_RUN=true] ./delete-custom-resources.sh
 #
-# Deletes all Route Monitor Operator custom resource instances
-# This must be done before uninstalling the Helm release to ensure clean deletion
+# Deletes all Route Monitor Operator custom resource instances and CRDs
+# This must be run after the Helm release is uninstalled (operator + ACM policy removed)
 
 DRY_RUN="${DRY_RUN:-false}"
 
@@ -100,5 +100,32 @@ if [[ "$DRY_RUN" != "true" ]]; then
         fi
     done
 fi
+
+# Step 5: Delete RMO CRDs
+log STEP "Step 5: Deleting RMO CRDs"
+
+RMO_CRDS=(
+    "clusterurlmonitors.monitoring.openshift.io"
+    "routemonitors.monitoring.openshift.io"
+    "servicemonitors.monitoring.rhobs"
+)
+
+for crd in "${RMO_CRDS[@]}"; do
+    if kubectl get crd "$crd" > /dev/null 2>&1; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log INFO "[DRY RUN] Would delete CRD: $crd"
+        else
+            log INFO "Deleting CRD: $crd"
+            kubectl patch crd "$crd" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+            if kubectl delete crd "$crd" --ignore-not-found=true --timeout=60s 2>&1; then
+                log SUCCESS "CRD deleted: $crd"
+            else
+                log WARN "Failed to delete CRD: $crd"
+            fi
+        fi
+    else
+        log INFO "CRD not found: $crd (already deleted)"
+    fi
+done
 
 log SUCCESS "RMO custom resources cleanup completed"
