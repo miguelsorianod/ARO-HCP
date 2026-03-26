@@ -63,6 +63,7 @@ type ClusterParams struct {
 	EncryptionKeyManagementMode   string
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
+	KeyVaultVisibility            string
 	Network                       NetworkConfig
 	APIVisibility                 string
 	ImageRegistryState            string
@@ -128,6 +129,7 @@ func NewDefaultClusterParams() ClusterParams {
 		},
 		EncryptionKeyManagementMode: "CustomerManaged",
 		EncryptionType:              "KMS",
+		KeyVaultVisibility:          "Public",
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),
@@ -347,3 +349,5 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources(ctx context
 	}
 	return clusterParams, nil
 }
+
+// ClusterParamsV20251223 contains parameters for v20251223preview cluster creation

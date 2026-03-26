@@ -26,6 +26,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -56,6 +57,9 @@ var _ = Describe("Customer", func() {
 				idmsSource2 = "fake-source2.example.com/fake"
 				idmsMirror2 = "fake-mirror2.example.com/fake"
 			)
+			// Adding timebomb for validating permissions as we should have permissions
+			// in our built in role by this date.
+			permissionsDeadline := mustParseDate("2026-04-03")
 
 			tc := framework.NewTestContext()
 
@@ -87,6 +91,26 @@ var _ = Describe("Customer", func() {
 				framework.RBACScopeResourceGroup,
 			)
 			Expect(err).NotTo(HaveOccurred())
+			if time.Now().Before(permissionsDeadline) {
+				By("validating SMI identity has correct service managed identity role binding")
+				// Parse the SMI resource ID to get the identity name and resource group
+				// This avoids double-leasing in pooled mode and works for both pooled and non-pooled
+				Expect(clusterParams.UserAssignedIdentitiesProfile).NotTo(BeNil())
+				Expect(clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity).NotTo(BeNil())
+
+				smiResourceID, err := azcorearm.ParseResourceID(*clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Extract identity name from the parsed resource ID
+				smiIdentityName := smiResourceID.Name
+				smiIdentityResourceGroup := smiResourceID.ResourceGroupName
+
+				// Validate the SMI Identity
+				// TODO: Remove this once we have updated rolebinding
+				// we should no longer see tests not adding permissions
+				err = tc.EnsureIdentityRoleAssignments(ctx, framework.ServiceManagedIdentityName, smiIdentityName, smiIdentityResourceGroup)
+				Expect(err).NotTo(HaveOccurred())
+			}
 
 			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")
 			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
