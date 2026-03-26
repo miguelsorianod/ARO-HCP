@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	csarhcpv1alpha1 "github.com/openshift-online/ocm-api-model/clientapi/arohcp/v1alpha1"
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -105,25 +105,9 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		}
 	}
 
-	// Fetch cluster status from cluster-service
-	csStatus, err := c.csClient.GetClusterStatus(ctx, csID)
-	if err != nil {
-		logger.Error(err, "failed to get cluster status from cluster-service for CS state dump")
-		// Continue with what we have
-	}
-	var statusData map[string]any
-	if csStatus != nil {
-		statusData, err = csObjectToMap(csStatus)
-		if err != nil {
-			logger.Error(err, "failed to serialize cluster-service status to JSON")
-			// Continue with cluster data only
-		}
-	}
-
 	logger.Info("cluster-service state dump",
 		"clusterServiceID", csID.String(),
 		"csCluster", clusterData,
-		"csStatus", statusData,
 	)
 
 	return nil
@@ -158,33 +142,33 @@ func csObjectToMap(obj any) (map[string]any, error) {
 // cluster service types fight the standard golang stack and don't conform to standard json interfaces.
 func MarshalClusterServiceAny(clusterServiceData any) ([]byte, error) {
 	switch castObj := clusterServiceData.(type) {
-	case *csarhcpv1alpha1.Cluster:
+	case *arohcpv1alpha1.Cluster:
 		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalCluster(castObj, buf); err != nil {
+		if err := arohcpv1alpha1.MarshalCluster(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.ClusterAutoscaler:
+	case *arohcpv1alpha1.ClusterAutoscaler:
 		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalClusterAutoscaler(castObj, buf); err != nil {
+		if err := arohcpv1alpha1.MarshalClusterAutoscaler(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.ExternalAuth:
+	case *arohcpv1alpha1.ExternalAuth:
 		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalExternalAuth(castObj, buf); err != nil {
+		if err := arohcpv1alpha1.MarshalExternalAuth(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.NodePool:
+	case *arohcpv1alpha1.NodePool:
 		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalNodePool(castObj, buf); err != nil {
+		if err := arohcpv1alpha1.MarshalNodePool(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.ProvisionShard:
+	case *arohcpv1alpha1.ProvisionShard:
 		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalProvisionShard(castObj, buf); err != nil {
+		if err := arohcpv1alpha1.MarshalProvisionShard(castObj, buf); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil

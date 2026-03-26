@@ -263,7 +263,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	dataDumpController := datadumpcontrollers.NewDataDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
 	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers, b.options.ClustersServiceClient)
-	csStateWatcherController := datadumpcontrollers.NewCSStateWatcherController(b.options.CosmosDBClient, activeOperationLister, backendInformers, b.options.ClustersServiceClient)
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",
@@ -506,7 +505,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 				go dataDumpController.Run(ctx, 20)
 				go csStateDumpController.Run(ctx, 20)
-				go csStateWatcherController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)

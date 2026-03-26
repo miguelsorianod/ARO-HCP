@@ -55,12 +55,6 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 					State(arohcpv1alpha1.ClusterStateReady).
 					Build()
 				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(csCluster, nil)
-
-				csStatus, _ := arohcpv1alpha1.NewClusterStatus().
-					State(arohcpv1alpha1.ClusterStateReady).
-					Description("Cluster is ready").
-					Build()
-				mock.EXPECT().GetClusterStatus(gomock.Any(), csID).Return(csStatus, nil)
 			},
 			wantErr: false,
 		},
@@ -69,7 +63,6 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			createCluster: true,
 			setupCSClient: func(mock *ocm.MockClusterServiceClientSpec, csID api.InternalID) {
 				mock.EXPECT().GetCluster(gomock.Any(), csID).Return(nil, fmt.Errorf("connection error"))
-				mock.EXPECT().GetClusterStatus(gomock.Any(), csID).Return(nil, fmt.Errorf("connection error"))
 			},
 			wantErr: false,
 		},
@@ -146,6 +139,11 @@ func TestCSStateDump_SyncOnce_CooldownPreventsSync(t *testing.T) {
 }
 
 func TestCsObjectToMap(t *testing.T) {
+	csCluster, _ := arohcpv1alpha1.NewCluster().
+		ID("test-cluster-id").
+		State(arohcpv1alpha1.ClusterStateReady).
+		Build()
+
 	tests := []struct {
 		name    string
 		input   any
@@ -159,16 +157,16 @@ func TestCsObjectToMap(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "simple map",
-			input:   map[string]string{"key": "value"},
+			name:    "cluster service cluster",
+			input:   csCluster,
 			wantNil: false,
 			wantErr: false,
 		},
 		{
-			name:    "struct input",
+			name:    "unsupported type returns error",
 			input:   struct{ Name string }{Name: "test"},
-			wantNil: false,
-			wantErr: false,
+			wantNil: true,
+			wantErr: true,
 		},
 	}
 
