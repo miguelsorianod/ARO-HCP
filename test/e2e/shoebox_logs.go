@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
+	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
 var _ = Describe("Customer", func() {
@@ -156,38 +156,13 @@ var _ = Describe("Customer", func() {
 			blobContainersClient, err := armstorage.NewBlobContainersClient(subscriptionID, creds, nil)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Logs take ~35-40 minutes to appear. Poll for up to 45 minutes.
-			Eventually(func() ([]string, error) {
-				return listInsightsContainers(ctx, blobContainersClient, *resourceGroup.Name, storageAccountName)
-			}, 45*time.Minute, 60*time.Second).ShouldNot(BeEmpty(),
-				"expected at least one insights-logs-* blob container in storage account %s", storageAccountName,
-			)
+			shoeboxVerifier := verifiers.VerifyShoeboxLogs(blobContainersClient, *resourceGroup.Name, storageAccountName)
 
-			By("verifying that log containers exist for expected categories")
-			containers, err := listInsightsContainers(ctx, blobContainersClient, *resourceGroup.Name, storageAccountName)
-			Expect(err).NotTo(HaveOccurred())
-			GinkgoLogr.Info("found log containers", "containers", containers)
-			Expect(len(containers)).To(BeNumerically(">", 0),
-				"expected at least one insights-logs-* container, got none",
+			// Logs take ~35-40 minutes to appear. Poll for up to 45 minutes.
+			Eventually(ctx, func() error {
+				return shoeboxVerifier.Verify(ctx)
+			}, 45*time.Minute, 60*time.Second).Should(Succeed(),
+				"expected at least one insights-logs-* blob container in storage account %s", storageAccountName,
 			)
 		})
 })
-
-// listInsightsContainers returns the names of blob containers in the storage account
-// that start with "insights-logs-", which is the prefix Azure Monitor uses for diagnostic logs.
-func listInsightsContainers(ctx context.Context, client *armstorage.BlobContainersClient, resourceGroupName, storageAccountName string) ([]string, error) {
-	var controlPlaneContainers []string
-	pager := client.NewListPager(resourceGroupName, storageAccountName, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list blob containers: %w", err)
-		}
-		for _, container := range page.Value {
-			if container.Name != nil && strings.HasPrefix(*container.Name, "insights-logs-") {
-				controlPlaneContainers = append(controlPlaneContainers, *container.Name)
-			}
-		}
-	}
-	return controlPlaneContainers, nil
-}

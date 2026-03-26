@@ -190,7 +190,7 @@ func setupCli() *cobra.Command {
 
 	// Specs can be globally filtered...
 	// TODO: revert before merging
-	specs = specs.MustFilter([]string{`name.contains("shoebox")`})
+	// specs = specs.MustFilter([]string{`name.contains("")`})
 
 	// Or walked...
 	// specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
