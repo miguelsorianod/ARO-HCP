@@ -51,3 +51,17 @@ spec:
         description: 'Backend controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
         runbook_url: 'TBD'
         summary: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
+    - alert: BackendControllerQueueDepthHigh
+      expr: |
+        max by (name, cluster) (
+          max without(prometheus_replica) (
+            workqueue_depth{namespace="aro-hcp"}
+          )
+        ) > 10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+        runbook_url: 'TBD'
+        summary: 'Backend controller workqueue {{ $labels.name }} depth is high'

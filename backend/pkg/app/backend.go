@@ -31,7 +31,6 @@ import (
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	// load all the prometheus client-go metrics
 	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 
