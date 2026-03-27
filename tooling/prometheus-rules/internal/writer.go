@@ -15,6 +15,7 @@ package internal
 
 import (
 	"io"
+	"regexp"
 	"strings"
 )
 
@@ -23,15 +24,22 @@ type Replacements struct {
 	To   string `json:"to"`
 }
 
-type ReplacementWriter struct {
-	writer       io.Writer
-	replacements []Replacements
+type RegexReplacements struct {
+	From *regexp.Regexp
+	To   string
 }
 
-func NewReplacementWriter(w io.Writer, replacements []Replacements) *ReplacementWriter {
+type ReplacementWriter struct {
+	writer            io.Writer
+	replacements      []Replacements
+	regexReplacements []RegexReplacements
+}
+
+func NewReplacementWriter(w io.Writer, replacements []Replacements, regexReplacements []RegexReplacements) *ReplacementWriter {
 	return &ReplacementWriter{
-		writer:       w,
-		replacements: replacements,
+		writer:            w,
+		replacements:      replacements,
+		regexReplacements: regexReplacements,
 	}
 }
 
@@ -40,6 +48,10 @@ func (rw *ReplacementWriter) Write(p []byte) (n int, err error) {
 
 	for _, replacement := range rw.replacements {
 		content = strings.ReplaceAll(content, replacement.From, replacement.To)
+	}
+
+	for _, regexReplacement := range rw.regexReplacements {
+		content = regexReplacement.From.ReplaceAllString(content, regexReplacement.To)
 	}
 
 	bytesWritten, err := rw.writer.Write([]byte(content))

@@ -55,12 +55,13 @@ type GroupAlerts struct {
 }
 
 type Options struct {
-	forceInfoSeverity  bool
-	promtoolPath       string
-	outputBicep        string
-	includedAlerts     map[string][]string
-	ruleFiles          []alertingRuleFile
-	outputReplacements []Replacements
+	forceInfoSeverity       bool
+	promtoolPath            string
+	outputBicep             string
+	includedAlerts          map[string][]string
+	ruleFiles               []alertingRuleFile
+	outputReplacements      []Replacements
+	regexOutputReplacements []RegexReplacements
 }
 
 type PrometheusRulesConfig struct {
@@ -69,6 +70,7 @@ type PrometheusRulesConfig struct {
 	OutputBicep               string         `json:"outputBicep"`
 	IncludedAlertsByGroup     []GroupAlerts  `json:"includedAlertsByGroup,omitempty"` // Optional: Only alerts listed here are included; if empty, all alerts are included
 	OutputReplacements        []Replacements `json:"outputReplacements,omitempty"`
+	RegexOutputReplacements   []Replacements `json:"regexOutputReplacements,omitempty"`
 	DefaultEvaluationInterval string         `json:"defaultEvaluationInterval,omitempty"`
 }
 
@@ -125,6 +127,21 @@ func (o *Options) Complete(configFilePath string, forceInfoSeverity bool, promto
 	for _, replacement := range o.outputReplacements {
 		if replacement.From == "" || replacement.To == "" {
 			return fmt.Errorf("expression replacement must have both from and to fields (from=%q, to=%q)", replacement.From, replacement.To)
+		}
+	}
+
+	o.regexOutputReplacements = make([]RegexReplacements, len(config.PrometheusRules.RegexOutputReplacements))
+	for i, regexReplacement := range config.PrometheusRules.RegexOutputReplacements {
+		if regexReplacement.From == "" || regexReplacement.To == "" {
+			return fmt.Errorf("regex expression replacement must have both from and to fields (from=%q, to=%q)", regexReplacement.From, regexReplacement.To)
+		}
+		compiledRegex, err := regexp.Compile(regexReplacement.From)
+		if err != nil {
+			return fmt.Errorf("invalid regex in regexOutputReplacements: %w", err)
+		}
+		o.regexOutputReplacements[i] = RegexReplacements{
+			From: compiledRegex,
+			To:   regexReplacement.To,
 		}
 	}
 
@@ -419,7 +436,7 @@ param location string = resourceGroup().location
 				// Use the file type to determine which function to call
 				// Groups are guaranteed to contain only one type of rule
 
-				replacementWriter := NewReplacementWriter(output, o.outputReplacements)
+				replacementWriter := NewReplacementWriter(output, o.outputReplacements, o.regexOutputReplacements)
 
 				if isRecordingRulesFile {
 					if err := writeRecordingGroups(armGroup, replacementWriter); err != nil {

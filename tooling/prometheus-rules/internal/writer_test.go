@@ -16,6 +16,7 @@ package internal
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ import (
 func TestReplacementWriter(t *testing.T) {
 	writer := NewReplacementWriter(os.Stdout, []Replacements{
 		{From: "fooo", To: "bar"},
-	})
+	}, []RegexReplacements{})
 
 	bytesWritten, err := writer.Write([]byte("fooo"))
 	assert.NoError(t, err)
@@ -35,7 +36,7 @@ func TestReplacementWriter_MultipleReplacements(t *testing.T) {
 	writer := NewReplacementWriter(os.Stdout, []Replacements{
 		{From: "fooo", To: "bar"},
 		{From: "bar", To: "baz"},
-	})
+	}, []RegexReplacements{})
 
 	bytesWritten, err := writer.Write([]byte("fooo"))
 	assert.NoError(t, err)
@@ -47,11 +48,25 @@ func TestReplacementWriter_CheckContent(t *testing.T) {
 
 	writer := NewReplacementWriter(buf, []Replacements{
 		{From: "fooo", To: "bar"},
-	})
+	}, []RegexReplacements{})
 
 	_, err := writer.Write([]byte("fooo"))
 	assert.NoError(t, err)
 
 	content := buf.String()
 	assert.Equal(t, "bar", content)
+}
+
+func TestRegexReplacementWriter_CheckContent(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+
+	writer := NewReplacementWriter(buf, []Replacements{}, []RegexReplacements{
+		{From: regexp.MustCompile("h(.+) there"), To: "h$1!!"},
+	})
+
+	_, err := writer.Write([]byte("hello there"))
+	assert.NoError(t, err)
+
+	content := buf.String()
+	assert.Equal(t, "hello!!", content)
 }
