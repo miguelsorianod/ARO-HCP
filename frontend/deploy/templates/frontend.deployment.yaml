@@ -72,11 +72,13 @@ spec:
         - containerPort: 8081
           protocol: TCP
         resources:
-          limits:
-            memory: 1Gi
           requests:
-            cpu: 100m
-            memory: 500Mi
+            cpu: {{ .Values.deployment.resources.requests.cpu }}
+            memory: {{ .Values.deployment.resources.requests.memory }}
+{{- if ne .Values.deployment.resources.limits.memory "unlimited" }}
+          limits:
+            memory: {{ .Values.deployment.resources.limits.memory }}
+{{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
