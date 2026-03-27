@@ -19,4 +19,9 @@ if [ -z "${PROW_JOB_NAME:-}" ]; then
   exit 0
 fi
 
-"${PROW_JOB_EXECUTOR}" execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}" --dry-run="${DRY_RUN:-false}" --gate-promotion="${GATE_PROMOTION:-false}"
+BASE_SHA_ARGS=()
+if [ -n "${BASE_SHA:-}" ]; then
+  BASE_SHA_ARGS=(--base-sha "$BASE_SHA")
+fi
+
+"${PROW_JOB_EXECUTOR}" execute --prow-token-keyvault-uri "https://${PROW_TOKEN_KEYVAULT}.${KEY_VAULT_DNSSUFFIX}" --prow-token-keyvault-secret "$PROW_TOKEN_SECRET" --job-name "$PROW_JOB_NAME" --region "$REGION" --ev2-rollout-version "${zz_injected_EV2RolloutVersion:-}" --dry-run="${DRY_RUN:-false}" --gate-promotion="${GATE_PROMOTION:-false}" ${BASE_SHA_ARGS[@]+"${BASE_SHA_ARGS[@]}"}

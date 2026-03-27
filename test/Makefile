@@ -55,10 +55,15 @@ prod-e2e:
 	$(MAKE) e2e
 
 e2e: $(PROW_JOB_EXECUTOR)
+	@if ! git branch -r --contains HEAD 2>/dev/null | grep -q .; then \
+		echo "ERROR: Current commit $$(git rev-parse --short HEAD) is not pushed to any remote. Please push before running e2e."; \
+		exit 1; \
+	fi
 	PROW_JOB_EXECUTOR=$(PROW_JOB_EXECUTOR) \
 	PROW_TOKEN_KEYVAULT="$$(yq .global.keyVault.name < ../config/rendered/dev/dev/westus3.yaml)" \
 	PROW_TOKEN_SECRET="$$(yq .e2e.prow.globalKeyVaultTokenSecret < ../config/rendered/dev/dev/westus3.yaml)" \
 	KEY_VAULT_DNSSUFFIX="vault.azure.net" \
+	BASE_SHA="$${BASE_SHA:-$$(git rev-parse HEAD)}" \
 	DRY_RUN="false" \
 	GATE_PROMOTION="true" \
 	./execute-prow-job.sh
