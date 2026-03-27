@@ -610,6 +610,125 @@ func TestResolveCacheHitWithNonSemverVersion(t *testing.T) {
 	assert.Equal(t, 1, downloadCount, "non-semver version should still cache hit")
 }
 
+func TestResolvePinnedVersion(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho pinned\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+		Version:      "v0.5.0",
+	}
+	asset := assetName(spec)
+
+	var latestQueried bool
+	var downloadCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "releases/latest") {
+			latestQueried = true
+		}
+		if r.URL.Path == "/v0.5.0/"+asset {
+			downloadCount++
+			_, err := w.Write(tarGzData)
+			require.NoError(t, err)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// Should download v0.5.0 (pinned), NOT query for latest
+	result, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.False(t, latestQueried, "pinned version should NOT query source for latest")
+	assert.Equal(t, 1, downloadCount)
+
+	content, _ := os.ReadFile(result)
+	assert.Equal(t, binaryContent, content)
+
+	ver, _ := cfg.readCachedVersion(spec)
+	assert.Equal(t, "v0.5.0", ver)
+
+	// Second resolve — cache hit (pinned version matches cache)
+	_, err = cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1, downloadCount, "pinned version cache hit should skip download")
+}
+
+func TestResolvePinnedVersionSkipsSourceEntirely(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho pinned\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+		Version:      "v0.5.0",
+	}
+	asset := assetName(spec)
+
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v0.5.0/" + asset: tarGzData,
+	})
+
+	// Source that would error on LatestTagName — but pinned version never calls it
+	spec.Source = &testSource{versionErr: fmt.Errorf("source is down"), serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// Should succeed despite source being "down" for version queries
+	result, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+
+	content, _ := os.ReadFile(result)
+	assert.Equal(t, binaryContent, content)
+}
+
+func TestResolvePinnedVersionOfflineAfterCache(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho pinned\n")
+	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
+
+	spec := BinarySpec{
+		Name:         "test-binary",
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+		Version:      "v0.5.0",
+	}
+	asset := assetName(spec)
+
+	server := setupTestDownloadServer(t, map[string][]byte{
+		"/v0.5.0/" + asset: tarGzData,
+	})
+	spec.Source = &testSource{version: "v1.0.0", serverURL: server.URL}
+	cfg := testConfig(t)
+
+	// First download with network
+	_, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+
+	// Now source is completely down — pinned version should still work from cache
+	spec.Source = &testSource{versionErr: fmt.Errorf("offline"), serverURL: "http://localhost:1"}
+	result, err := cfg.resolve(context.Background(), spec, "")
+	require.NoError(t, err)
+
+	content, _ := os.ReadFile(result)
+	assert.Equal(t, binaryContent, content, "pinned version should work fully offline once cached")
+}
+
+func TestResolvePinnedVersionRejectsInvalid(t *testing.T) {
+	cfg := testConfig(t)
+	spec := BinarySpec{
+		Name:         "test-binary",
+		Source:       &testSource{version: "v1.0.0"},
+		AssetPattern: "{name}-{os}-{arch}.tar.gz",
+		Version:      "../../../etc/evil",
+	}
+
+	_, err := cfg.resolve(context.Background(), spec, "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid pinned version")
+}
+
 func TestResolveOfflineFallback(t *testing.T) {
 	spec := BinarySpec{
 		Name:         "test-binary-offline",

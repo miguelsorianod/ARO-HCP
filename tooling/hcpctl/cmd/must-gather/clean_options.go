@@ -27,12 +27,13 @@ import (
 )
 
 type RawCleanOptions struct {
-	PathToClean           string
-	ServiceConfigPath     string
-	MustGatherCleanBinary string
-	CleanedOutputPath     string
-	CleanConfigPath       string
-	CacheDir              string
+	PathToClean             string
+	ServiceConfigPath       string
+	MustGatherCleanBinary   string
+	MustGatherCleanVersion  string
+	CleanedOutputPath       string
+	CleanConfigPath         string
+	CacheDir                string
 }
 
 func DefaultCleanOptions() *RawCleanOptions {
@@ -57,7 +58,8 @@ func (opts *RawCleanOptions) Run(ctx context.Context) error {
 func BindCleanOptions(opts *RawCleanOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.PathToClean, "path-to-clean", opts.PathToClean, "Path to clean")
 	cmd.Flags().StringVar(&opts.ServiceConfigPath, "service-config-path", opts.ServiceConfigPath, "Path to ARO-HCP Service Configuration file (not must-gather-clean config)")
-	cmd.Flags().StringVar(&opts.MustGatherCleanBinary, "must-gather-clean-binary", opts.MustGatherCleanBinary, "Optional path to must-gather-clean binary. If omitted, the latest release is automatically downloaded and cached.")
+	cmd.Flags().StringVar(&opts.MustGatherCleanBinary, "must-gather-clean-binary", opts.MustGatherCleanBinary, "Optional path to must-gather-clean binary. If omitted, the release is automatically downloaded and cached.")
+	cmd.Flags().StringVar(&opts.MustGatherCleanVersion, "must-gather-clean-version", opts.MustGatherCleanVersion, "Pin must-gather-clean to a specific release version (e.g. v0.1.0). If omitted, the latest release is used.")
 	cmd.Flags().StringVar(&opts.CleanedOutputPath, "cleaned-output-path", opts.CleanedOutputPath, "Path to cleaned output")
 	cmd.Flags().StringVar(&opts.CleanConfigPath, "clean-config-path", opts.CleanConfigPath, "Path to must-gather-clean config, will be extended with ARO-HCP Service Configuration literals")
 	cmd.Flags().StringVar(&opts.CacheDir, "cache-dir", opts.CacheDir, "Override cache directory for downloaded binaries. Defaults to OS cache dir. Can also be set via HCPCTL_CACHE_DIR env var.")
@@ -119,7 +121,7 @@ func (opts *RawCleanOptions) Validate(ctx context.Context) (*ValidatedCleanOptio
 func (opts *ValidatedCleanOptions) Complete(ctx context.Context) (*CleanOptions, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
-	resolvedBinary, err := binresolver.ResolveMustGatherClean(ctx, opts.MustGatherCleanBinary, opts.CacheDir)
+	resolvedBinary, err := binresolver.ResolveMustGatherClean(ctx, opts.MustGatherCleanBinary, opts.MustGatherCleanVersion, opts.CacheDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve must-gather-clean binary: %w", err)
 	}

@@ -45,6 +45,7 @@ type BinarySpec struct {
 	AssetPattern        string // template for non-Windows: "{name}-{os}-{arch}.tar.gz"
 	WindowsAssetPattern string // template for Windows: "{name}-{os}-{arch}.exe.zip"
 	ChecksumAsset       string // release asset containing SHA256 checksums (e.g. "SHA256_SUM")
+	Version             string // pin to a specific version (e.g. "v0.0.3"); empty means use latest
 }
 
 // resolverConfig holds configuration for resolving and downloading binaries.
@@ -88,25 +89,35 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 		return "", fmt.Errorf("no source configured for %q binary", spec.Name)
 	}
 
-	version, err := spec.Source.LatestTagName(ctx)
-	if err == nil {
-		if verr := validateVersion(version); verr != nil {
-			return "", verr
+	var version string
+	if spec.Version != "" {
+		if err := validateVersion(spec.Version); err != nil {
+			return "", fmt.Errorf("invalid pinned version: %w", err)
 		}
-	}
-	if err != nil {
-		logger.V(1).Info("failed to query for latest version, attempting cache fallback", "error", err)
-		cached, fallbackErr := cfg.findAnyCached(spec)
-		if fallbackErr != nil {
-			return "", fmt.Errorf("failed to get latest version and no cached binary found; "+
-				"you can manually download the binary and provide it via %s: %w", "--"+spec.Name+"-binary", err)
+		version = spec.Version
+		logger.V(1).Info("using pinned version", "version", version)
+	} else {
+		var err error
+		version, err = spec.Source.LatestTagName(ctx)
+		if err == nil {
+			if verr := validateVersion(version); verr != nil {
+				return "", verr
+			}
 		}
-		if cachedVer, verErr := cfg.readCachedVersion(spec); verErr == nil {
-			logger.V(1).Info("using cached binary (source unreachable)", "path", cached, "version", cachedVer)
-		} else {
-			logger.V(1).Info("using cached binary (source unreachable, version unknown)", "path", cached)
+		if err != nil {
+			logger.V(1).Info("failed to query for latest version, attempting cache fallback", "error", err)
+			cached, fallbackErr := cfg.findAnyCached(spec)
+			if fallbackErr != nil {
+				return "", fmt.Errorf("failed to get latest version and no cached binary found; "+
+					"you can manually download the binary and provide it via %s: %w", "--"+spec.Name+"-binary", err)
+			}
+			if cachedVer, verErr := cfg.readCachedVersion(spec); verErr == nil {
+				logger.V(1).Info("using cached binary (source unreachable)", "path", cached, "version", cachedVer)
+			} else {
+				logger.V(1).Info("using cached binary (source unreachable, version unknown)", "path", cached)
+			}
+			return cached, nil
 		}
-		return cached, nil
 	}
 
 	binPath, err := cfg.cachedBinaryPath(spec)
@@ -115,7 +126,6 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 			"you can manually provide the binary via %s: %w", "--"+spec.Name+"-binary", err)
 	}
 
-	// Check if cached binary is already at the latest version
 	cachedVersion, versionErr := cfg.readCachedVersion(spec)
 	if versionErr == nil && cachedVersion == version {
 		if _, statErr := os.Stat(binPath); statErr == nil {
@@ -177,9 +187,6 @@ func (cfg *resolverConfig) download(ctx context.Context, spec BinarySpec, versio
 		return fmt.Errorf("failed to create cache directory %q (check write permissions): %w", filepath.Dir(destPath), err)
 	}
 
-	// Extract to a temporary file first, then rename to the final path.
-	// This ensures a previously-good cached binary is not destroyed if
-	// extraction fails partway through.
 	extractTmpFile, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".tmp.*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file for extraction: %w", err)
@@ -205,7 +212,9 @@ func (cfg *resolverConfig) download(ctx context.Context, spec BinarySpec, versio
 	}
 
 	if err := os.Rename(extractTmp, destPath); err != nil {
-		return fmt.Errorf("failed to move extracted binary to cache: %w", err)
+		if _, statErr := os.Stat(destPath); statErr != nil {
+			return fmt.Errorf("failed to move extracted binary to cache: %w", err)
+		}
 	}
 
 	return nil

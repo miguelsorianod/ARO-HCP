@@ -27,8 +27,13 @@ var MustGatherClean = BinarySpec{
 
 // ResolveMustGatherClean resolves the path to the must-gather-clean binary.
 // If explicitPath is non-empty, it verifies the file exists and returns it.
-// Otherwise, it downloads the latest release and caches it locally.
+// Otherwise, it downloads the release and caches it locally.
+// version pins to a specific release (empty uses latest).
 // cacheDir overrides the default cache directory (empty uses default).
-func ResolveMustGatherClean(ctx context.Context, explicitPath, cacheDir string) (string, error) {
-	return Resolve(ctx, MustGatherClean, explicitPath, cacheDir)
+func ResolveMustGatherClean(ctx context.Context, explicitPath, version, cacheDir string) (string, error) {
+	spec := MustGatherClean
+	if version != "" {
+		spec.Version = version
+	}
+	return Resolve(ctx, spec, explicitPath, cacheDir)
 }

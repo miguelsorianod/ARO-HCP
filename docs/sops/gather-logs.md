@@ -74,7 +74,9 @@ The `clean` command processes must-gather data to remove sensitive information u
 
 #### must-gather-clean Binary
 
-The `must-gather-clean` binary is automatically downloaded from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page when the `--must-gather-clean-binary` flag is omitted. The latest version is checked against the locally cached version; if a newer version is available, it is downloaded automatically. If GitHub is unreachable, the previously cached binary is used as a fallback. The cached binary is stored in your OS cache directory (`~/.cache/hcpctl/bin/` on Linux, `~/Library/Caches/hcpctl/bin/` on macOS).
+The `must-gather-clean` binary is automatically downloaded from the [openshift/must-gather-clean releases](https://github.com/openshift/must-gather-clean/releases) page when the `--must-gather-clean-binary` flag is omitted. The latest version is checked against the locally cached version; if a newer version is available, it is downloaded automatically. If GitHub is unreachable, the previously cached binary is used as a fallback. The cached binary is stored in your OS cache directory (`~/.cache/hcpctl/bin/must-gather-clean/` on Linux, `~/Library/Caches/hcpctl/bin/must-gather-clean/` on macOS).
+
+To pin to a specific version, use `--must-gather-clean-version v0.1.0`. This skips the latest version check and downloads the specified version if not already cached. Once cached, a pinned version works fully offline.
 
 To override the cache directory, use `--cache-dir /path/to/cache` or set the `HCPCTL_CACHE_DIR` environment variable.
 
