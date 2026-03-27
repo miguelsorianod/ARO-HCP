@@ -206,12 +206,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
-			// Node pool upgrades typically finish in on the order of a dozen minutes; the Eventually timeout below
-			// adds buffer on the safe side for this initial E2E. TODO: tighten to align with the node pool upgrade
-			// SLO once determined.
+			// We have seen the backend take on the order of ~8 minutes to trigger the upgrade in CS; from there
+			// the upgrade proceeds on its usual ~15–20 minute course. A 30 minute window left the test on the
+			// edge of failing, so we use 45 minutes while investigating backend delay. Leads under discussion:
+			// - Increase backend memory: https://github.com/Azure/ARO-HCP/pull/4581 , https://github.com/Azure/ARO-HCP/pull/4641
+			// - Fire controllers sooner when Cosmos documents change: https://github.com/Azure/ARO-HCP/pull/4485 , https://github.com/Azure/ARO-HCP/pull/3913
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDesiredVersion, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 30*time.Minute, 2*time.Minute).Should(Succeed())
+			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET still reflects the new version")
 			npGetResponse, err := framework.GetNodePool(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
