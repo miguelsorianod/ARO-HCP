@@ -185,6 +185,11 @@ not all) of the E2E tests will use ARO-HCP RP API to communicate with ARO HCP
 so that it will be possible to run them in all environments, from development
 environment to production.
 
+To run a single E2E test towards a local environment, you can use the following command:
+```bash
+make e2e-local/run-test TEST_NAME="Customer should be able to create an HCP cluster and manage pull secrets"
+```
+
 ## Guidelines for Writing E2E Test Cases
 
 For instructions and best practices on creating ARO HCP E2E test cases, refer to [this document](https://docs.google.com/document/d/1e0ZTi8qbM3oO-sq0NVJ6gLlj1S9S5iKIGaKQIXxonfk/edit?tab=t.0#heading=h.4oto1giw5qo8). The resource:
