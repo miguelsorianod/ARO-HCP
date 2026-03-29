@@ -308,6 +308,10 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
         enableFIPS: true
         enableNodePublicIP: false
         kubeletDiskType: 'OS'
+        kubeletConfig: {
+          imageGcHighThreshold: 70
+          imageGcLowThreshold: 60
+        }
         osDiskType: 'Ephemeral'
         osDiskSizeGB: systemOsDiskSizeGB
         minCount: systemAgentMinCount

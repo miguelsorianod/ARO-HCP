@@ -94,6 +94,10 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       enableFIPS: true
       enableNodePublicIP: false
       kubeletDiskType: 'OS'
+      kubeletConfig: {
+        imageGcHighThreshold: 70
+        imageGcLowThreshold: 60
+      }
       osDiskType: 'Ephemeral'
       osDiskSizeGB: osDiskSizeGB
       count: minCount
