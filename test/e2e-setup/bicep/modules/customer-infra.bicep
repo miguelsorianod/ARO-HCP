@@ -16,6 +16,9 @@ param customerEtcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 @description('Cluster name used to ensure unique resource names within the resource group')
 param clusterName string = ''
 
+@description('If set to true, creates a private KeyVault with publicNetworkAccess disabled')
+param privateKeyVault bool = false
+
 //
 // Variables
 //
@@ -26,7 +29,7 @@ var randomSuffix = toLower(uniqueString(resourceGroup().id, clusterName))
 // parameter because of strict Azure requirements for KeyVault names
 // (KeyVault names are globally unique and must be between 3-24 alphanumeric
 // characters).
-var customerKeyVaultName string = 'cust-kv-${randomSuffix}'
+var customerKeyVaultName = 'cust-kv-${randomSuffix}'
 
 //
 // Network
@@ -70,6 +73,14 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
         name: 'customer-vnet-integration-subnet'
         properties: {
           addressPrefix: vnetIntegrationSubnetPrefix
+          delegations: [
+            {
+              name: 'aro-hcp-delegation'
+              properties: {
+                serviceName: 'Microsoft.RedHatOpenShift/hcpOpenShiftClusters'
+              }
+            }
+          ]
         }
       }
     ]
@@ -87,6 +98,7 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
     enableRbacAuthorization: true
     enableSoftDelete: false
     tenantId: subscription().tenantId
+    publicNetworkAccess: privateKeyVault ? 'Disabled' : 'Enabled'
     sku: {
       family: 'A'
       name: 'standard'
@@ -100,6 +112,64 @@ resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' =
   properties: {
     kty: 'RSA'
     keySize: 2048
+  }
+}
+
+resource privateEndpointDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (privateKeyVault) {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+  properties: {}
+  dependsOn: [
+    privateEndpoint
+  ]
+}
+
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = if (privateKeyVault) {
+  name: 'kv-private-endpoint'
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: 'kv-private-endpoint'
+        properties: {
+          privateLinkServiceId: customerKeyVault.id
+          groupIds: ['vault']
+        }
+      }
+    ]
+    subnet: {
+      id: customerVnet.properties.subnets[0].id
+    }
+  }
+  location: resourceGroup().location
+}
+
+resource privateEndpointDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = if (privateKeyVault) {
+  name: 'kv-private-ep-dns-group'
+  parent: privateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config1'
+        properties: {
+          privateDnsZoneId: privateEndpointDnsZone.id
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    privateDnsZoneVnetLink
+  ]
+}
+
+resource privateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (privateKeyVault) {
+  name: uniqueString('kv-private-dns-zone-link')
+  parent: privateEndpointDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: customerVnet.id
+    }
   }
 }
 

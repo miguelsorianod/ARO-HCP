@@ -109,6 +109,12 @@ defaults:
         registry: mcr.microsoft.com
         repository: oss/v2/fluent/fluent-bit
         digest: sha256:33bed43b09e3d2384c7661c74f6ed79ca53b0c25a3e28d77f139a7b9d50fbf1a # v4.2.3 (2026-03-16 17:07)
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
     kusto:
       enabled: false
       environmentName: "{{ .ctx.environment }}"
@@ -125,12 +131,27 @@ defaults:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
       digest: sha256:f907f0eb97bdf12502907c5003845276d41662736d7a5462ae597eb74e337bc9 # 20260322.1 (2026-03-22 03:25)
+    k8s:
+      namespace: monitoring
+      serviceAccountName: ke-serviceaccount
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          memory: unlimited
   # ARO HCP Metrics Exporter
   customExporter:
     managedIdentityName: "aro-hcp-exporter"
     k8s:
       namespace: aro-hcp-exporter
       serviceAccountName: aro-hcp-exporter
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: unlimited
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
@@ -145,6 +166,15 @@ defaults:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
       digest: sha256:490c3b795cb12bd9e5a3680bb7dabd7ea02799c30b14ed960611517c5d808e6b # v1.7.2 (2026-02-24 20:49)
+    k8s:
+      namespace: secret-sync-controller
+      serviceAccountName: secrets-store-sync-controller-manager
+      resources:
+        requests:
+          cpu: 50m
+          memory: 100Mi
+        limits:
+          memory: unlimited
   # Backplane API
   backplaneAPI:
     image:
@@ -380,11 +410,11 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       userAgentPool:
-        name: 'user'
+        name: 'u64d8ds6'
         minCount: 1
         maxCount: 3
-        vmSize: 'Standard_D2s_v3'
-        osDiskSizeGB: 32
+        vmSize: 'Standard_D8ds_v6'
+        osDiskSizeGB: 64
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"
@@ -576,6 +606,12 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: backend
+      resources:
+        requests:
+          cpu: 100m
+          memory: 500Mi
+        limits:
+          memory: unlimited
     azureRuntimeConfig:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     maestro:
@@ -594,6 +630,12 @@ defaults:
       replicas: 2
       namespace: aro-hcp-admin-api
       serviceAccountName: admin-api
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          memory: unlimited
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
   # Session Gate
@@ -625,6 +667,12 @@ defaults:
       replicas: 2
       namespace: aro-hcp
       serviceAccountName: frontend
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: unlimited
     cosmosDB:
       deploy: true
       disableLocalAuth: true
@@ -726,6 +774,12 @@ defaults:
         replicas: 3
         namespace: maestro
         serviceAccountName: maestro
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: unlimited
     agent:
       consumerName: "hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}" # [env-unique]
       loglevel: 2
@@ -799,7 +853,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:5f079a0240687e6d2214d892a61019db3a3bbb4e3afb97bcf7731633af4ce7d8 # c2ae01ac53880f3edf6fe7ec1558dd3e371f6cee (2026-03-24 21:59)
+      digest: sha256:b47789207a8e2d7457eacb1314ddcd07ab6cde06a40a322e8e286e20435e516c # af21183ed8e6aa2ef26f0ae07a4580b7d6534444 (2026-03-28 08:20)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
@@ -832,6 +886,12 @@ defaults:
       replicas: 3
       namespace: clusters-service
       serviceAccountName: clusters-service
+      resources:
+        requests:
+          cpu: 50m
+          memory: 150Mi
+        limits:
+          memory: unlimited
       deploymentStrategy:
         rollingUpdate:
           maxUnavailable: 0
@@ -1500,8 +1560,6 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
-              userAgentPool:
-                vmSize: Standard_D4ds_v5
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
             jaeger:
