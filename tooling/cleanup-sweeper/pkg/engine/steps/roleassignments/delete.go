@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 const (
@@ -159,6 +160,8 @@ func discoverOrphanedRoleAssignments(
 	if err != nil {
 		panic(err)
 	}
+	skipReporter := common.NewDiscoverySkipReporter("Delete orphaned role assignments")
+	defer skipReporter.Flush(logger)
 
 	if roleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")
@@ -183,13 +186,13 @@ func discoverOrphanedRoleAssignments(
 	}
 
 	// 1) List all role assignments at resource-group scope (ARM).
-	assignments, err := listRoleAssignments(ctx, roleAssignmentsClient, subscriptionID)
+	assignments, err := listRoleAssignments(ctx, roleAssignmentsClient, subscriptionID, logger, skipReporter)
 	if err != nil {
 		return nil, err
 	}
 
 	// 2-4) Resolve all unique principal IDs via Graph directoryObjects/getByIds.
-	resolvedPrincipalIDs, err := resolvePrincipalIDsWithGraphGetByIDs(ctx, graphClient, assignments)
+	resolvedPrincipalIDs, err := resolvePrincipalIDsWithGraphGetByIDs(ctx, graphClient, assignments, logger, skipReporter)
 	if err != nil {
 		return nil, fmt.Errorf("failed resolving role assignment principals with Microsoft Graph getByIds: %w", err)
 	}
@@ -290,6 +293,8 @@ func listRoleAssignments(
 	ctx context.Context,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
 	subscriptionID string,
+	logger logr.Logger,
+	skipReporter *common.DiscoverySkipReporter,
 ) ([]roleAssignmentRecord, error) {
 	pager := roleAssignmentsClient.NewListForSubscriptionPager(nil)
 	assignments := make([]roleAssignmentRecord, 0)
@@ -304,7 +309,7 @@ func listRoleAssignments(
 			if !assignmentWithinResourceGroupScope(roleAssignment, resourceGroupScopePrefix) {
 				continue
 			}
-			record, ok := toRoleAssignmentRecord(roleAssignment)
+			record, ok := toRoleAssignmentRecord(roleAssignment, logger, skipReporter)
 			if !ok {
 				continue
 			}
@@ -315,9 +320,17 @@ func listRoleAssignments(
 	return assignments, nil
 }
 
-func toRoleAssignmentRecord(roleAssignment *armauthorization.RoleAssignment) (roleAssignmentRecord, bool) {
+func toRoleAssignmentRecord(
+	roleAssignment *armauthorization.RoleAssignment,
+	logger logr.Logger,
+	skipReporter *common.DiscoverySkipReporter,
+) (roleAssignmentRecord, bool) {
 	id, ok := roleAssignmentID(roleAssignment)
 	if !ok {
+		skipReporter.Record(
+			logger,
+			"invalid_role_assignment_payload",
+		)
 		return roleAssignmentRecord{}, false
 	}
 
@@ -346,11 +359,18 @@ func resolvePrincipalIDsWithGraphGetByIDs(
 	ctx context.Context,
 	graphClient *msgraphsdk.GraphServiceClient,
 	assignments []roleAssignmentRecord,
+	logger logr.Logger,
+	skipReporter *common.DiscoverySkipReporter,
 ) (sets.Set[string], error) {
 	uniquePrincipalIDs := sets.New[string]()
 	for _, assignment := range assignments {
 		normalizedPrincipalID := normalizeID(assignment.PrincipalID)
 		if normalizedPrincipalID == "" {
+			skipReporter.Record(
+				logger,
+				"missing_principal_id",
+				"assignmentID", assignment.ID,
+			)
 			continue
 		}
 		uniquePrincipalIDs.Insert(normalizedPrincipalID)
@@ -375,10 +395,18 @@ func resolvePrincipalIDsWithGraphGetByIDs(
 		}
 		for _, object := range response.GetValue() {
 			if object == nil || object.GetId() == nil {
+				skipReporter.Record(
+					logger,
+					"invalid_graph_object_payload",
+				)
 				continue
 			}
 			normalizedID := normalizeID(*object.GetId())
 			if normalizedID == "" {
+				skipReporter.Record(
+					logger,
+					"empty_graph_object_id",
+				)
 				continue
 			}
 			resolvedPrincipalIDs.Insert(normalizedID)

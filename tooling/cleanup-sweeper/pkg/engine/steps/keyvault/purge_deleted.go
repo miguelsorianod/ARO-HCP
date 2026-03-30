@@ -21,10 +21,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 // DeletedVaultsResourceType is the ARM resource type for deleted Key Vaults.
@@ -108,6 +111,13 @@ func (s *purgeDeletedStep) Verify(ctx context.Context) error {
 }
 
 func (s *purgeDeletedStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	skipReporter := common.NewDiscoverySkipReporter(s.Name())
+	defer skipReporter.Flush(logger)
+
 	s.targetLocations = map[string]string{}
 
 	pager := s.cfg.VaultsClient.NewListDeletedPager(nil)
@@ -117,8 +127,13 @@ func (s *purgeDeletedStep) Discover(ctx context.Context) ([]runner.Target, error
 		if err != nil {
 			return nil, fmt.Errorf("failed to list deleted vaults: %w", err)
 		}
-		for _, vault := range page.Value {
+		for i, vault := range page.Value {
 			if vault == nil || vault.Name == nil || vault.Properties == nil || vault.Properties.Location == nil || vault.Properties.VaultID == nil {
+				skipReporter.Record(
+					logger,
+					"invalid_deleted_vault_payload",
+					"index", i,
+				)
 				continue
 			}
 			vaultID := *vault.Properties.VaultID

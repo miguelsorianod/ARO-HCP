@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 // DNSZonesResourceType is the ARM resource type for DNS zones.
@@ -131,22 +132,43 @@ func (s *deleteNSDelegationRecordsStep) Discover(ctx context.Context) ([]runner.
 	if err != nil {
 		panic(err)
 	}
+	skipReporter := common.NewDiscoverySkipReporter(s.Name())
+	defer skipReporter.Flush(logger)
+
 	childZones, err := armhelpers.ListByType(ctx, s.cfg.ResourcesClient, s.cfg.ResourceGroupName, DNSZonesResourceType)
 	if err != nil {
 		return nil, err
 	}
 	targets := make([]runner.Target, 0, len(childZones))
-	for _, resource := range childZones {
+	for i, resource := range childZones {
 		if resource == nil || resource.Name == nil {
+			skipReporter.Record(
+				logger,
+				"invalid_dns_zone_payload",
+				"index", i,
+			)
 			continue
 		}
 		childZone := *resource.Name
 		parentZone, recordSetName, ok := parseDelegation(childZone)
 		if !ok {
+			skipReporter.Record(
+				logger,
+				"not_a_delegated_child_zone",
+				"zone", childZone,
+			)
 			continue
 		}
 
-		delegationTargets, err := discoverNSDelegationRecordTargets(ctx, s.cfg.Credential, s.cfg.SubsClient, parentZone, recordSetName)
+		delegationTargets, err := discoverNSDelegationRecordTargets(
+			ctx,
+			s.cfg.Credential,
+			s.cfg.SubsClient,
+			parentZone,
+			recordSetName,
+			logger,
+			skipReporter,
+		)
 		if err != nil {
 			logger.Info(
 				fmt.Sprintf("[WARNING] Failed NS delegation discovery for child zone %q; continuing", childZone),
@@ -168,7 +190,14 @@ func (s *deleteNSDelegationRecordsStep) Delete(ctx context.Context, target runne
 	return deleteNSRecordSet(ctx, s.cfg.Credential, subscriptionID, resourceGroup, zoneName, recordSetName)
 }
 
-func discoverNSDelegationRecordTargets(ctx context.Context, credential azcore.TokenCredential, subsClient *armsubscriptions.Client, parentZone, recordSetName string) ([]runner.Target, error) {
+func discoverNSDelegationRecordTargets(
+	ctx context.Context,
+	credential azcore.TokenCredential,
+	subsClient *armsubscriptions.Client,
+	parentZone, recordSetName string,
+	logger logr.Logger,
+	skipReporter *common.DiscoverySkipReporter,
+) ([]runner.Target, error) {
 	targets := []runner.Target{}
 	var errs []error
 	subsPager := subsClient.NewListPager(nil)
@@ -182,6 +211,12 @@ func discoverNSDelegationRecordTargets(ctx context.Context, credential azcore.To
 
 		for _, sub := range page.Value {
 			if sub.SubscriptionID == nil {
+				skipReporter.Record(
+					logger,
+					"missing_subscription_id",
+					"parentZone", parentZone,
+					"recordSetName", recordSetName,
+				)
 				continue
 			}
 
@@ -210,6 +245,12 @@ func discoverNSDelegationRecordTargets(ctx context.Context, credential azcore.To
 
 				for _, zone := range zonePage.Value {
 					if zone == nil || zone.Name == nil || zone.ID == nil {
+						skipReporter.Record(
+							logger,
+							"invalid_dns_zone_payload",
+							"subscriptionID", subID,
+							"parentZone", parentZone,
+						)
 						continue
 					}
 					if !strings.EqualFold(*zone.Name, parentZone) {

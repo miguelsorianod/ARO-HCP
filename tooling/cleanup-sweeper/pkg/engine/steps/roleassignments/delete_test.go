@@ -19,9 +19,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 func TestNewDeleteOrphanedStep_ExecutionOptions(t *testing.T) {
@@ -166,7 +170,11 @@ func TestAssignmentWithinResourceGroupScope_UsesScopeWhenPresent(t *testing.T) {
 func TestToRoleAssignmentRecord_ReturnsFalseWithoutID(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := toRoleAssignmentRecord(&armauthorization.RoleAssignment{}); ok {
+	if _, ok := toRoleAssignmentRecord(
+		&armauthorization.RoleAssignment{},
+		logr.Discard(),
+		common.NewDiscoverySkipReporter("test"),
+	); ok {
 		t.Fatalf("expected conversion to fail without ID")
 	}
 }

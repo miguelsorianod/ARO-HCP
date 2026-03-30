@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
@@ -26,6 +28,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	armhelpers "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/arm"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 // NSPResourceType is the ARM resource type for network security perimeters.
@@ -115,13 +118,26 @@ func (s *nspForceDeleteStep) Verify(ctx context.Context) error {
 }
 
 func (s *nspForceDeleteStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	skipReporter := common.NewDiscoverySkipReporter(s.Name())
+	defer skipReporter.Flush(logger)
+
 	resources, err := armhelpers.ListByType(ctx, s.cfg.ResourcesClient, s.cfg.ResourceGroupName, NSPResourceType)
 	if err != nil {
 		return nil, err
 	}
 	targets := make([]runner.Target, 0, len(resources))
-	for _, resource := range resources {
+	for i, resource := range resources {
 		if resource == nil || resource.ID == nil || resource.Name == nil || resource.Type == nil {
+			skipReporter.Record(
+				logger,
+				"invalid_resource_payload",
+				"index", i,
+				"resourceType", NSPResourceType,
+			)
 			continue
 		}
 		targets = append(targets, runner.Target{

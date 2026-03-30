@@ -20,7 +20,6 @@ import (
 
 	"github.com/go-logr/logr"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -51,51 +50,34 @@ func ListByType(
 }
 
 // HasLocks reports whether a resource has one or more management locks.
-func HasLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, resourceID string) bool {
-	parsedID, err := azcorearm.ParseResourceID(resourceID)
-	if err != nil {
-		return false
-	}
-
-	parentResourcePath := ""
-	if parsedID.Parent != nil {
-		parentResourcePath = parsedID.Parent.String()
-	}
-
-	pager := locksClient.NewListAtResourceLevelPager(
-		parsedID.ResourceGroupName,
-		parsedID.ResourceType.Namespace,
-		parentResourcePath,
-		parsedID.ResourceType.Type,
-		parsedID.Name,
-		nil,
-	)
+func HasLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, resourceID string) (bool, error) {
+	pager := locksClient.NewListByScopePager(resourceID, nil)
 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return false
+			return false, fmt.Errorf("failed to list locks for resource ID %q: %w", resourceID, err)
 		}
 		if len(page.Value) > 0 {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // HasResourceGroupLocks reports whether a resource group has management locks.
-func HasResourceGroupLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, resourceGroupName string) bool {
+func HasResourceGroupLocks(ctx context.Context, locksClient *armlocks.ManagementLocksClient, resourceGroupName string) (bool, error) {
 	pager := locksClient.NewListAtResourceGroupLevelPager(resourceGroupName, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return false
+			return false, fmt.Errorf("failed to list locks for resource group %q: %w", resourceGroupName, err)
 		}
 		if len(page.Value) > 0 {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // FilterUnlockedTargets filters out lock-protected targets and logs skips.
@@ -112,7 +94,19 @@ func FilterUnlockedTargets(
 
 	filtered := make([]runner.Target, 0, len(targets))
 	for _, target := range targets {
-		if HasLocks(ctx, locksClient, target.ID) {
+		hasLocks, err := HasLocks(ctx, locksClient, target.ID)
+		if err != nil {
+			logger.Info(
+				"Failed to evaluate locks for deletion target; keeping target",
+				"step", stepName,
+				"resource", target.Name,
+				"id", target.ID,
+				"error", err,
+			)
+			filtered = append(filtered, target)
+			continue
+		}
+		if hasLocks {
 			logger.Info("Skipping deletion target", "step", stepName, "resource", target.Name, "reason", "locked")
 			continue
 		}

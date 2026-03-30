@@ -111,18 +111,28 @@ func (s *deleteStep) Verify(ctx context.Context) error {
 }
 
 func (s *deleteStep) Discover(ctx context.Context) ([]runner.Target, error) {
-	targets := []runner.Target{{Name: s.cfg.ResourceGroupName, Type: ResourceType}}
-	if s.cfg.LocksClient == nil {
-		return targets, nil
-	}
-	if !armhelpers.HasResourceGroupLocks(ctx, s.cfg.LocksClient, s.cfg.ResourceGroupName) {
-		return targets, nil
-	}
-
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		panic(err)
 	}
+	targets := []runner.Target{{Name: s.cfg.ResourceGroupName, Type: ResourceType}}
+	if s.cfg.LocksClient == nil {
+		return targets, nil
+	}
+	hasLocks, lockErr := armhelpers.HasResourceGroupLocks(ctx, s.cfg.LocksClient, s.cfg.ResourceGroupName)
+	if lockErr != nil {
+		logger.Info(
+			"Failed to evaluate resource-group locks during discovery; keeping target",
+			"step", s.Name(),
+			"resource", s.cfg.ResourceGroupName,
+			"error", lockErr,
+		)
+		return targets, nil
+	}
+	if !hasLocks {
+		return targets, nil
+	}
+
 	logger.Info("Skipping deletion target", "step", s.Name(), "resource", s.cfg.ResourceGroupName, "reason", "locked")
 	return nil, nil
 }

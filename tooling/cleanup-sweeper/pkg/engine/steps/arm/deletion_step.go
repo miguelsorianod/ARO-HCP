@@ -19,12 +19,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armlocks"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
 
 // ResourceSelector defines inclusion or exclusion resource-type filters.
@@ -135,11 +138,24 @@ func (s *deletionStep) Verify(ctx context.Context) error {
 }
 
 func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		panic(err)
+	}
+	skipReporter := common.NewDiscoverySkipReporter(s.Name())
+	defer skipReporter.Flush(logger)
+
 	targets := []runner.Target{}
 	seenByID := sets.New[string]()
 
-	appendTarget := func(resource *armresources.GenericResourceExpanded) {
+	appendTarget := func(resource *armresources.GenericResourceExpanded, source string, index int) {
 		if resource == nil || resource.ID == nil || resource.Name == nil || resource.Type == nil {
+			skipReporter.Record(
+				logger,
+				"invalid_resource_payload",
+				"source", source,
+				"index", index,
+			)
 			return
 		}
 		id := *resource.ID
@@ -163,8 +179,8 @@ func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
 			if err != nil {
 				return nil, err
 			}
-			for _, resource := range resources {
-				appendTarget(resource)
+			for i, resource := range resources {
+				appendTarget(resource, "listByType", i)
 			}
 		}
 		return FilterUnlockedTargets(ctx, s.cfg.LocksClient, s.Name(), targets), nil
@@ -181,14 +197,20 @@ func (s *deletionStep) Discover(ctx context.Context) ([]runner.Target, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to list resources: %w", err)
 		}
-		for _, resource := range page.Value {
+		for i, resource := range page.Value {
 			if resource == nil || resource.Type == nil {
+				skipReporter.Record(
+					logger,
+					"missing_resource_type",
+					"source", "listByResourceGroup",
+					"index", i,
+				)
 				continue
 			}
 			if excluded.Has(strings.ToLower(*resource.Type)) {
 				continue
 			}
-			appendTarget(resource)
+			appendTarget(resource, "listByResourceGroup", i)
 		}
 	}
 	return FilterUnlockedTargets(ctx, s.cfg.LocksClient, s.Name(), targets), nil

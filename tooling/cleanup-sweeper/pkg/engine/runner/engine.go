@@ -101,7 +101,7 @@ func (e *Engine) runStep(ctx context.Context, step Step, parallelism int) error 
 	if e.DryRun {
 		logger.Info("Dry-run deletion step", "step", step.Name(), "targets", len(targets))
 		for _, target := range targets {
-			logger.V(1).Info(
+			logger.Info(
 				"Dry-run deletion target",
 				"step", step.Name(),
 				"resource", target.Name,
