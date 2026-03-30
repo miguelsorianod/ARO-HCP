@@ -36,7 +36,7 @@ var _ = Describe("Customer", func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
 
-	It("should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to 500 replicas",
+	It("should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits",
 		labels.RequireNothing,
 		labels.Medium,
 		labels.Positive,
@@ -46,12 +46,12 @@ var _ = Describe("Customer", func() {
 				customerClusterName = "np-autoscale-cluster"
 
 				azNodePoolName         = "autoscale-az"
-				azAutoscalingMin int32 = 1
+				azAutoscalingMin int32 = 3
 				azAutoscalingMax int32 = 500
 				availabilityZone       = "1"
 
 				noAZNodePoolName         = "autoscale-noaz"
-				noAZAutoscalingMin int32 = 1
+				noAZAutoscalingMin int32 = 3
 				noAZAutoscalingMax int32 = 200
 			)
 			tc := framework.NewTestContext()
@@ -159,7 +159,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(nodes.Items)).To(BeNumerically(">=", int(azAutoscalingMin)))
 
-				By("updating the AZ nodepool max replicas from 500 to 2 before creating the next nodepool")
+				By("updating the AZ nodepool max replicas from 500 to 4 before creating the next nodepool")
 				_, err = framework.UpdateNodePoolAndWait(ctx,
 					nodePoolsClient,
 					*resourceGroup.Name,
@@ -169,7 +169,7 @@ var _ = Describe("Customer", func() {
 						Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
 							AutoScaling: &hcpsdk20240610preview.NodePoolAutoScaling{
 								Min: to.Ptr(azAutoscalingMin),
-								Max: to.Ptr(int32(2)),
+								Max: to.Ptr(int32(4)),
 							},
 						},
 					},
@@ -177,7 +177,7 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred())
 
-				By("verifying the AZ nodepool max replicas was updated to 2")
+				By("verifying the AZ nodepool max replicas was updated to 4")
 				azNodePoolUpdatedResp, err := framework.GetNodePool(ctx,
 					nodePoolsClient,
 					*resourceGroup.Name,
@@ -186,7 +186,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(azNodePoolUpdatedResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
 				Expect(azNodePoolUpdatedResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-				Expect(azNodePoolUpdatedResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(int32(2))), "Expected AZ nodepool max replicas to be updated to 2")
+				Expect(azNodePoolUpdatedResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(int32(4))), "Expected AZ nodepool max replicas to be updated to 4")
 			}
 
 			By("creating the no-AZ nodepool with 200 max replicas")
