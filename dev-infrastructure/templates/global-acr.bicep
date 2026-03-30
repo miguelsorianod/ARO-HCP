@@ -122,6 +122,46 @@ module svcPublicCaching '../modules/acr/public-cache.bicep' = {
         sourceRepo: 'registry.k8s.io/ingress-nginx/*'
         targetRepo: 'k8s-cache/ingress-nginx/*'
       }
+      {
+        ruleName: 'k8s-sig-storage'
+        sourceRepo: 'registry.k8s.io/sig-storage/*'
+        targetRepo: 'k8s-cache/sig-storage/*'
+      }
+      {
+        ruleName: 'k8s-csi-secrets-store'
+        sourceRepo: 'registry.k8s.io/csi-secrets-store/*'
+        targetRepo: 'k8s-cache/csi-secrets-store/*'
+      }
+      {
+        ruleName: 'fluentbit'
+        sourceRepo: 'cr.fluentbit.io/fluent/*'
+        targetRepo: 'fluentbit-cache/fluent/*'
+      }
+      {
+        ruleName: 'docker-jaegertracing'
+        sourceRepo: 'docker.io/jaegertracing/*'
+        targetRepo: 'docker-cache/jaegertracing/*'
+      }
+      {
+        ruleName: 'docker-otel'
+        sourceRepo: 'docker.io/otel/*'
+        targetRepo: 'docker-cache/otel/*'
+      }
+      {
+        ruleName: 'ghcr-adx-mon'
+        sourceRepo: 'ghcr.io/azure/adx-mon/*'
+        targetRepo: 'ghcr-cache/azure/adx-mon/*'
+      }
+      {
+        ruleName: 'quay-redhat-user-workloads'
+        sourceRepo: 'quay.io/redhat-user-workloads/*'
+        targetRepo: 'quay-cache/redhat-user-workloads/*'
+      }
+      {
+        ruleName: 'quay-thanos'
+        sourceRepo: 'quay.io/thanos/*'
+        targetRepo: 'thanos/*'
+      }
     ]
   }
   dependsOn: [
