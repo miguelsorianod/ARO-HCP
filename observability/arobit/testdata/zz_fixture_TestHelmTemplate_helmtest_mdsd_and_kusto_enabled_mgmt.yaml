@@ -349,7 +349,18 @@ data:
         Database_Name HostedControlPlaneLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key containerLogsOcm
+        buffer_dir "/var/kusto/container-logs-ocm"
+        buffering_enabled           true 
+        upload_timeout              
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
@@ -361,7 +372,18 @@ data:
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key containerLogs
+        buffer_dir "/var/kusto/container-logs"
+        buffering_enabled           true 
+        upload_timeout              
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match kube-events.logs
@@ -374,7 +396,28 @@ data:
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key kubernetesEvents
+        buffer_dir "/var/kusto/kubernetes-events"
+        buffering_enabled           true 
+        upload_timeout              
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 
     [OUTPUT]
         Match systemd.*
@@ -387,7 +430,17 @@ data:
         Database_Name ServiceLogs
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        buffer_dir "/var/kusto/systemd"
+        buffering_enabled           true 
+        upload_timeout              
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -483,7 +536,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 7aabaa39ad4a1752bb06611861a3a52ed5d5da1122d0f15895f2e690a4fb6a16
+        checksum/configmap: fd0d97d9bd678bb5e4ed8205e659371e8802a25a858c2a91c8fcaa71cb5db968
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -541,21 +594,21 @@ spec:
             limits:
               memory: 1Gi
           volumeMounts:
-            - name: varlog
+            - name: var-kusto
+              mountPath: /var/kusto
+            - name: var-log
               mountPath: /var/log
             - name: machine-id
               mountPath: /etc/machine-id
               readOnly: true
             - name: flb-storage
               mountPath: /var/fluent-bit/flb-storage
-            - name: varlibdockercontainers
+            - name: var-lib-docker-containers
               mountPath: /var/lib/docker/containers
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-            - name: kusto
-              mountPath: /var/fluent-bit/kusto
             - name: shoebox-mappings
               mountPath: /shoebox-config
               readOnly: true
@@ -654,8 +707,9 @@ spec:
         operator: "Equal"
         value: "true"
       volumes:
-        - name: kusto
+        - name: var-kusto
           emptyDir: {}
+          sizeLimit: 2Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -665,7 +719,7 @@ spec:
         - name: machine-id
           hostPath:
             path: /etc/machine-id
-        - name: varlog
+        - name: var-log
           hostPath:
             path: /var/log
         - name: varlibdockercontainers

@@ -202,7 +202,18 @@ data:
         Database_Name ServiceLogs
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key frontendLogs
+        buffer_dir "/var/kusto/frontend-logs"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match aro-hcp-backend.logs
@@ -215,7 +226,18 @@ data:
         Database_Name ServiceLogs
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key backendLogs
+        buffer_dir "/var/kusto/backend-logs"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match clusters-service.logs
@@ -228,7 +250,18 @@ data:
         Database_Name ServiceLogs
         Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key clustersServiceLogs
+        buffer_dir "/var/kusto/clusters-service"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
@@ -240,7 +273,18 @@ data:
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key containerLogs
+        buffer_dir "/var/kusto/container-logs"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match kube-events.logs
@@ -253,7 +297,28 @@ data:
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key kubernetesEvents
+        buffer_dir "/var/kusto/kubernetes-events"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 
     [OUTPUT]
         Match systemd.*
@@ -266,7 +331,17 @@ data:
         Database_Name ServiceLogs
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        buffer_dir "/var/kusto/systemd"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        2GB
+        blob_uri_length             128
+        scheduler_max_retries       3
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -362,7 +437,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 4094438516cfb5dcf8aa4da41f7f51f548c3bce15d6fbdcb8b9bc67d7c1da54c
+        checksum/configmap: bab24dc2b71e97cb0b719614fb06600652da01c4432f91a52c0ccc8b7f5cbb05
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -420,29 +495,30 @@ spec:
             limits:
               memory: 1Gi
           volumeMounts:
-            - name: varlog
+            - name: var-kusto
+              mountPath: /var/kusto
+            - name: var-log
               mountPath: /var/log
             - name: machine-id
               mountPath: /etc/machine-id
               readOnly: true
             - name: flb-storage
               mountPath: /var/fluent-bit/flb-storage
-            - name: varlibdockercontainers
+            - name: var-lib-docker-containers
               mountPath: /var/lib/docker/containers
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-            - name: kusto
-              mountPath: /var/fluent-bit/kusto
       tolerations:
       - effect: NoSchedule
         key: infra
         operator: "Equal"
         value: "true"
       volumes:
-        - name: kusto
+        - name: var-kusto
           emptyDir: {}
+          sizeLimit: 2Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -452,7 +528,7 @@ spec:
         - name: machine-id
           hostPath:
             path: /etc/machine-id
-        - name: varlog
+        - name: var-log
           hostPath:
             path: /var/log
         - name: varlibdockercontainers
