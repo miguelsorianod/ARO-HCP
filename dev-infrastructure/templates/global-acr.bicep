@@ -133,21 +133,6 @@ module svcPublicCaching '../modules/acr/public-cache.bicep' = {
         targetRepo: 'k8s-cache/csi-secrets-store/*'
       }
       {
-        ruleName: 'fluentbit'
-        sourceRepo: 'cr.fluentbit.io/fluent/*'
-        targetRepo: 'fluentbit-cache/fluent/*'
-      }
-      {
-        ruleName: 'docker-jaegertracing'
-        sourceRepo: 'docker.io/jaegertracing/*'
-        targetRepo: 'docker-cache/jaegertracing/*'
-      }
-      {
-        ruleName: 'docker-otel'
-        sourceRepo: 'docker.io/otel/*'
-        targetRepo: 'docker-cache/otel/*'
-      }
-      {
         ruleName: 'ghcr-adx-mon'
         sourceRepo: 'ghcr.io/azure/adx-mon/*'
         targetRepo: 'ghcr-cache/azure/adx-mon/*'
