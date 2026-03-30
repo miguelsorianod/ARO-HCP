@@ -139,7 +139,7 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 					http.StatusConflict,
 					arm.CloudErrorCodeConflict,
 					"",
-					"Diagnostics might be disabled for VM %s", vmName,
+					"Boot diagnostics are unexpectedly not enabled for VM %s. Serial console logs require boot diagnostics to be enabled.", vmName,
 				)
 			}
 		}
@@ -172,18 +172,35 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return utils.TrackError(fmt.Errorf("failed to download serial console log: unexpected status %d", blobResp.StatusCode))
 	}
 
+	limitedReader := io.LimitReader(blobResp.Body, maxBytes)
+	logData, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to read serial console log: %w", err))
+	}
+
 	// stream response as text/plain and prevent caching of potentially sensitive console output
 	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	writer.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	writer.Header().Set("Pragma", "no-cache")
 	writer.Header().Set("Expires", "0")
-	writer.WriteHeader(http.StatusOK)
-	limitedReader := io.LimitReader(blobResp.Body, maxBytes)
-	_, err = io.Copy(writer, limitedReader)
+
+	logger := utils.LoggerFromContext(request.Context())
+
+	if int64(len(logData)) == maxBytes {
+		writer.Header().Set("Content-Range", fmt.Sprintf("bytes 0-%d/*", maxBytes-1))
+		writer.WriteHeader(http.StatusPartialContent)
+		warning := "WARNING: Serial console log output limited to first 100MB. Full logs may be truncated.\n\n"
+		_, err = writer.Write([]byte(warning))
+		if err != nil {
+			logger.Error(err, "failed to write serial console log truncation warning", "vmName", vmName)
+			return utils.TrackError(fmt.Errorf("failed to write serial console log: %w", err))
+		}
+	}
+
+	_, err = writer.Write(logData)
 	if err != nil {
-		logger := utils.LoggerFromContext(request.Context())
-		logger.Error(err, "failed to stream serial console log", "vmName", vmName)
-		return nil
+		logger.Error(err, "failed to write serial console log", "vmName", vmName)
+		return utils.TrackError(fmt.Errorf("failed to write serial console log: %w", err))
 	}
 
 	return nil
