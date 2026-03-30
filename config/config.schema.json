@@ -1794,7 +1794,8 @@
             "certificate",
             "allowedAcisExtensions",
             "genevaActionsPrincipalId",
-            "application"
+            "application",
+            "publish"
           ],
           "properties": {
             "serviceTag": {
@@ -1851,6 +1852,31 @@
             "application": {
               "$ref": "#/definitions/entraApplication",
               "description": "This is the app our Geneva Actions will use to talk to the Admin API"
+            },
+            "publish": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "buildId": {
+                  "type": "integer"
+                },
+                "packageName": {
+                  "type": "string"
+                },
+                "betaPackageName": {
+                  "type": "string"
+                },
+                "betaCertificate": {
+                  "$ref": "#/definitions/certificateRef",
+                  "description": "Certificate used to publish the beta Geneva Actions package"
+                }
+              },
+              "required": [
+                "buildId",
+                "packageName",
+                "betaPackageName",
+                "betaCertificate"
+              ]
             }
           }
         }
