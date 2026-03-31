@@ -1,0 +1,10 @@
+# This test case exercises the scenario where the specified
+# cluster scoped identities role set name is set to public
+# and the ARM Permissions Manager Identity are not set.
+values: ../values.yaml
+name: backend-clstr-scoped-identities-role-set-name-public
+namespace: aro-hcp
+testData:
+  backend:
+    clusterScopedIdentitiesConfig:
+      roleSetName: public

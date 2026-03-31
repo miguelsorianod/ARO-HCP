@@ -166,6 +166,8 @@ spec:
         - "--maestro-source-environment-identifier"
         - "arohcpdev"
         - "--exit-on-panic=true"
+        - "--azure-cluster-scoped-identities-role-set-name"
+        - "dev"
         env:
         - name: DB_NAME
           valueFrom:

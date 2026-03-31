@@ -184,7 +184,7 @@ spec:
         - "--insecure-azure-arm-permissions-manager-identity-tenant-id"
         - "64dc69e4-d083-49fc-9569-ebece1dd1408"
         - "--azure-cluster-scoped-identities-role-set-name"
-        - "dev"
+        - "public"
         env:
         - name: DB_NAME
           valueFrom:
