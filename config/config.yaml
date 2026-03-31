@@ -1392,8 +1392,8 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
-                name: 'u64d4sv3'
-                vmSize: 'Standard_D4s_v3'
+                name: 'u64d8dsv5'
+                vmSize: 'Standard_D8ds_v5'
                 osDiskSizeGB: 64
             jaeger:
               deploy: true
@@ -1565,8 +1565,8 @@ clouds:
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
-                name: 'u64d4sv3'
-                vmSize: 'Standard_D4s_v3'
+                name: 'u64d8dsv5'
+                vmSize: 'Standard_D8ds_v5'
                 osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
