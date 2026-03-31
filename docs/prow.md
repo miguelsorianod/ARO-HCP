@@ -13,6 +13,8 @@ This document is intended for ARO HCP developers and SREs. It provides an overvi
     - [Frontend Simulation](#frontend-simulation)
     - [E2E Parallel](#e2e-parallel)
     - [Environment-Specific E2E Tests](#environment-specific-e2e-tests)
+  - [Postsubmit Jobs](#postsubmit-jobs)
+    - [EV2 Gating E2E Tests](#ev2-gating-e2e-tests)
   - [Periodic Jobs](#periodic-jobs)
     - [Image Updater Tooling](#image-updater-tooling)
     - [Resource Group Cleanup](#resource-group-cleanup)
@@ -33,6 +35,7 @@ Prow is a Kubernetes-based CI/CD system originally developed for Kubernetes itse
 The jobs are organized into two main categories:
 
 - **Presubmit jobs**: Run on pull requests to validate changes before merging
+- **Postsubmit jobs**: Triggered by EV2 pipelines to run E2E gating tests against a specific commit
 - **Periodic jobs**: Run on a schedule to perform routine testing and maintenance
 
 ## Job Categories
@@ -126,6 +129,44 @@ These optional jobs allow testing against specific Azure environments before mer
 > [!WARNING]
 > Exercise caution when running tests against production environments. These should only be used when absolutely necessary.
 
+### Postsubmit Jobs
+
+Postsubmit jobs are triggered by EV2 pipelines via the Gangway API to run E2E gating tests against a specific ARO-HCP commit. Unlike periodic jobs, these jobs receive a `base_sha` parameter that pins the test execution to the exact commit being deployed, ensuring E2E tests validate the code that was actually promoted rather than HEAD.
+
+These jobs are defined in the `e2e` variant configuration ([Azure-ARO-HCP-main__e2e.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml)) and use `run_if_changed: ^$` to prevent automatic triggering on merge — they are only triggered programmatically via the [prow-job-executor](https://github.com/Azure/ARO-Tools/tree/main/tools/prow-job-executor).
+
+#### EV2 Gating E2E Tests
+
+##### Integration Environment
+
+| Property | Value |
+|----------|-------|
+| **Job Name** | [branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel](https://prow.ci.openshift.org/?job=branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel) |
+| **Environment** | Int (uksouth) |
+| **Step Registry** | [integration-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=e2e&test=integration-e2e-parallel) |
+| **Purpose** | Runs end-to-end parallel tests against the integration environment after EV2 promotions. Gates promotion to stage. |
+
+##### Stage Environment
+
+| Property | Value |
+|----------|-------|
+| **Job Name** | [branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel](https://prow.ci.openshift.org/?job=branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel) |
+| **Environment** | Stage (uksouth) |
+| **Step Registry** | [stage-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=e2e&test=stage-e2e-parallel) |
+| **Purpose** | Runs end-to-end parallel tests against the staging environment after EV2 promotions. |
+
+##### Production Environment
+
+| Property | Value |
+|----------|-------|
+| **Job Name** | [branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel](https://prow.ci.openshift.org/?job=branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel) |
+| **Environment** | Prod (uksouth) |
+| **Step Registry** | [prod-e2e-parallel](https://steps.ci.openshift.org/job?org=Azure&repo=ARO-HCP&branch=main&variant=e2e&test=prod-e2e-parallel) |
+| **Purpose** | Runs end-to-end parallel tests against the production environment after EV2 promotions. |
+
+> [!NOTE]
+> These postsubmit jobs build the `aro-hcp-e2e-tools` image from source at the pinned commit, so the test binary always matches the code being deployed. The ARO-HCP commit is extracted from the `EV2_ROLLOUT_VERSION` and passed as `--base-sha` to the prow-job-executor.
+
 ### Periodic Jobs
 
 Periodic jobs run on a regular schedule to maintain system health, perform routine tests, and clean up resources.
@@ -179,7 +220,10 @@ These jobs automatically delete expired resource groups across different environ
 
 #### Periodic E2E Tests
 
-These jobs run comprehensive end-to-end tests on a schedule to catch regressions and ensure environment health.
+These jobs run comprehensive end-to-end tests on a schedule to catch regressions and ensure environment health. They always test against HEAD of the main branch.
+
+> [!NOTE]
+> For EV2 gating tests that run against a specific pinned commit, see [Postsubmit Jobs / EV2 Gating E2E Tests](#ev2-gating-e2e-tests).
 
 ##### Periodic Integration E2E
 
@@ -192,7 +236,7 @@ These jobs run comprehensive end-to-end tests on a schedule to catch regressions
 | **Purpose** | Runs end-to-end parallel tests against the integration environment. |
 
 > [!NOTE]
-> This job uses a placeholder schedule. It actually runs after each Int environment promotion via EV2 pipeline integration, so it runs frequently but not on a regular schedule.
+> This job uses a placeholder schedule. It is triggered on-demand and always tests against HEAD.
 
 ##### Periodic Stage E2E
 
@@ -269,7 +313,7 @@ For background on how leases work in OpenShift CI, see:
 - **Leases in job configuration**
   - E2E jobs request identity container leases from Boskos via ci-operator `leases` sections, which populate `LEASED_MSI_CONTAINERS` with a space‑separated list of resource names:
     - **Presubmit jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main.yaml).
-    - **Periodic / gating jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml).
+    - **EV2 gating jobs** (`integration-e2e-parallel`, `stage-e2e-parallel`, `prod-e2e-parallel`): leasing configuration lives in [ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml](https://github.com/openshift/release/blob/master/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__e2e.yaml).
     - **Dev presubmit jobs**: leasing configuration for the `aro-hcp-local-e2e` workflow lives in [ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml](https://github.com/openshift/release/blob/master/ci-operator/step-registry/aro-hcp/local-e2e/aro-hcp-local-e2e-workflow.yaml).
   - A typical leasing stanza looks like:
 
@@ -341,7 +385,7 @@ For background on how leases work in OpenShift CI, see:
 
 ## EV2 Pipeline Integration
 
-The periodic E2E test jobs are integrated with EV2 (Express V2) deployment pipelines for Microsoft tenant environments (Int, Stage, and Prod). This integration enables automated testing as part of the deployment validation process.
+The E2E gating test jobs are integrated with EV2 (Express V2) deployment pipelines for Microsoft tenant environments (Int, Stage, and Prod). This integration enables automated testing as part of the deployment validation process, running tests against the specific ARO-HCP commit being deployed.
 
 ### How Prow Jobs Link to EV2 Pipelines
 
@@ -352,7 +396,7 @@ The connection between Prow jobs and EV2 pipelines is established through config
    ```yaml
    e2e:
      regionTest:
-       prowJobName: periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel
+       prowJobName: branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel
        gatePromotion: true  # Optional: gates promotion on test success
    ```
 
@@ -364,10 +408,12 @@ The connection between Prow jobs and EV2 pipelines is established through config
      configRef: e2e.regionTest.prowJobName
    ```
 
-3. **Environment-Specific Mapping**:
-   - **Integration**: `periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel` - see `clouds.public.environments.int.defaults.e2e` in config
-   - **Stage**: `periodic-ci-Azure-ARO-HCP-main-periodic-stage-e2e-parallel` - see `clouds.public.environments.stg.defaults.e2e` in config
-   - **Production**: `periodic-ci-Azure-ARO-HCP-main-periodic-prod-e2e-parallel` - see `clouds.public.environments.prod.defaults.e2e` in config
+3. **Commit Pinning**: The `prow-job-executor` extracts the ARO-HCP commit SHA from the `EV2_ROLLOUT_VERSION` environment variable and passes it as `--base-sha` to trigger the job as a postsubmit. This ensures the E2E tests run against the exact commit being deployed, not HEAD.
+
+4. **Environment-Specific Mapping**:
+   - **Integration**: `branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel` - see `clouds.public.environments.int.defaults.e2e` in config
+   - **Stage**: `branch-ci-Azure-ARO-HCP-main-e2e-stage-e2e-parallel` - see `clouds.public.environments.stg.defaults.e2e` in config
+   - **Production**: `branch-ci-Azure-ARO-HCP-main-e2e-prod-e2e-parallel` - see `clouds.public.environments.prod.defaults.e2e` in config
 
 ### Identifying EV2 Rollouts from Prow Jobs
 
@@ -447,6 +493,7 @@ To modify or add jobs:
 1. Fork the [openshift/release](https://github.com/openshift/release) repository
 2. Edit configuration files in [ci-operator/config/Azure/ARO-HCP/](https://github.com/openshift/release/tree/master/ci-operator/config/Azure/ARO-HCP):
    - `Azure-ARO-HCP-main.yaml` for presubmit and postsubmit jobs
+   - `Azure-ARO-HCP-main__e2e.yaml` for EV2 gating E2E postsubmit jobs
    - `Azure-ARO-HCP-main__periodic.yaml` for periodic jobs
    - `Azure-ARO-HCP-main__image-updater.yaml` for image updater jobs
 3. Generate the job definitions by running:
