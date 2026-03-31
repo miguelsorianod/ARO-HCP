@@ -1391,6 +1391,10 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              userAgentPool:
+                name: 'u64d4sv3'
+                vmSize: 'Standard_D4s_v3'
+                osDiskSizeGB: 64
             jaeger:
               deploy: true
       perf:
@@ -1560,6 +1564,10 @@ clouds:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+              userAgentPool:
+                name: 'u64d4sv3'
+                vmSize: 'Standard_D4s_v3'
+                osDiskSizeGB: 64
               infraAgentPool:
                 vmSize: Standard_D4ds_v5
             jaeger:
