@@ -50,6 +50,7 @@ data:
         # (default: 5M)
         storage.backlog.mem_limit 50M
         storage.metrics           on
+        Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
         HC_Errors_Count           5

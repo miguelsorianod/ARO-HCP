@@ -46,6 +46,7 @@ data:
         # (default: 5M)
         storage.backlog.mem_limit 50M
         storage.metrics           on
+        Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
         HC_Errors_Count           5
@@ -352,13 +353,13 @@ data:
         azure_kusto_buffer_key containerLogsOcm
         buffer_dir "/var/kusto/container-logs-ocm"
         buffering_enabled           true 
-        upload_timeout              
+        upload_timeout              1m
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
     [OUTPUT]
@@ -375,13 +376,13 @@ data:
         azure_kusto_buffer_key containerLogs
         buffer_dir "/var/kusto/container-logs"
         buffering_enabled           true 
-        upload_timeout              
+        upload_timeout              1m
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 
@@ -399,13 +400,13 @@ data:
         azure_kusto_buffer_key kubernetesEvents
         buffer_dir "/var/kusto/kubernetes-events"
         buffering_enabled           true 
-        upload_timeout              
+        upload_timeout              1m
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 
@@ -432,13 +433,13 @@ data:
         ingestion_mapping_reference ingestionMapping
         buffer_dir "/var/kusto/systemd"
         buffering_enabled           true 
-        upload_timeout              
+        upload_timeout              1m
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 ---
@@ -536,7 +537,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: fd0d97d9bd678bb5e4ed8205e659371e8802a25a858c2a91c8fcaa71cb5db968
+        checksum/configmap: 9a0c9e18a4cb2b6507af9aaa2ae1d98c201bed2f284a0da8c1283431d172f4b8
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -701,6 +702,7 @@ spec:
             - mountPath: /geneva/geneva_auth/
               name: geneva-certs-clusterlogs
               readOnly: true
+      terminationGracePeriodSeconds: 45
       tolerations:
       - effect: NoSchedule
         key: infra
@@ -708,8 +710,8 @@ spec:
         value: "true"
       volumes:
         - name: var-kusto
-          emptyDir: {}
-          sizeLimit: 2Gi
+          emptyDir:
+            sizeLimit: 12Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -722,7 +724,7 @@ spec:
         - name: var-log
           hostPath:
             path: /var/log
-        - name: varlibdockercontainers
+        - name: var-lib-docker-containers
           hostPath:
             path: /var/lib/docker/containers
         - name: cacrt-host

@@ -195,6 +195,7 @@ spec:
               name: geneva-certs-clusterlogs
               readOnly: true
         {{- end }}
+      terminationGracePeriodSeconds: 45
       tolerations:
       - effect: NoSchedule
         key: infra
@@ -202,8 +203,8 @@ spec:
         value: "true"
       volumes:
         - name: var-kusto
-          emptyDir: {}
-          sizeLimit: 2Gi
+          emptyDir:
+            sizeLimit: 12Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -216,7 +217,7 @@ spec:
         - name: var-log
           hostPath:
             path: /var/log
-        - name: varlibdockercontainers
+        - name: var-lib-docker-containers
           hostPath:
             path: /var/lib/docker/containers
         - name: cacrt-host

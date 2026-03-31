@@ -43,6 +43,7 @@ data:
         # (default: 5M)
         storage.backlog.mem_limit 50M
         storage.metrics           on
+        Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
         HC_Errors_Count           5
@@ -208,9 +209,9 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 
@@ -232,9 +233,9 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 
@@ -256,9 +257,9 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
     [OUTPUT]
@@ -279,9 +280,9 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 
@@ -303,9 +304,9 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 
@@ -336,9 +337,9 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2GB
+        store_dir_limit_size        2Gi
         blob_uri_length             128
-        scheduler_max_retries       3
+        scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
 ---
@@ -436,7 +437,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: e8101d12f6830f4a59aac543481b358fbc5e141b29b93716b16da51cb6d7b760
+        checksum/configmap: 607696817c423ebeb83d655205b27f8564ae47047e54329de335858320dfaa7e
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -509,6 +510,7 @@ spec:
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
+      terminationGracePeriodSeconds: 45
       tolerations:
       - effect: NoSchedule
         key: infra
@@ -516,8 +518,8 @@ spec:
         value: "true"
       volumes:
         - name: var-kusto
-          emptyDir: {}
-          sizeLimit: 2Gi
+          emptyDir:
+            sizeLimit: 12Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -530,7 +532,7 @@ spec:
         - name: var-log
           hostPath:
             path: /var/log
-        - name: varlibdockercontainers
+        - name: var-lib-docker-containers
           hostPath:
             path: /var/lib/docker/containers
         - name: cacrt-host
