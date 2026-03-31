@@ -147,6 +147,10 @@ e2e-local/run: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) run-suite "rp-api-compat-all/parallel" --junit-path="$$JUNIT_PATH" --html-path="$$HTML_PATH" --max-concurrency 100
 .PHONY: e2e-local/run
 
+e2e-local/run-test:
+	$(MAKE) -C test -f E2ELocal.mk e2e-local/pf/run-test TEST_NAME="$$TEST_NAME"
+.PHONY: e2e-local/run-test
+
 CONTAINER_RUNTIME ?= docker
 
 mega-lint:
