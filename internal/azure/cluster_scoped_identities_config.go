@@ -107,371 +107,51 @@ const (
 	RoleDefinitionConfigSetNamePublic RoleDefinitionConfigSetName = "public"
 )
 
-// newRoleDefinitionConfigSets creates a new RoleDefinitionConfigSets containing
-// all the role definition config sets for all existing RoleDefinitionConfigSetName defined values.
-func newRoleDefinitionConfigSets() *roleDefinitionConfigSets {
-	roleDefinitionConfigSets := &roleDefinitionConfigSets{}
-	roleDefinitionConfigSets.DevRoleDefinitionConfigSet = buildDevRoleDefinitionConfigSet()
-	roleDefinitionConfigSets.PublicRoleDefinitionConfigSet = buildPublicRoleDefinitionConfigSet()
-
-	return roleDefinitionConfigSets
-}
-
-// buildPublicRoleDefinitionConfigSet builds the public role definition config set corresponding to
-// the role definition config set RoleDefinitionConfigSetNamePublic.
-func buildPublicRoleDefinitionConfigSet() *RoleDefinitionConfigSet {
-	publicRoleDefinitionConfigSet := &RoleDefinitionConfigSet{
-		ControlPlaneOperatorsIdentitiesRoleDefinitions: make(ControlPlaneOperatorsIdentitiesRoleDefinitions),
-		DataPlaneOperatorsIdentitiesRoleDefinitions:    make(DataPlaneOperatorsIdentitiesRoleDefinitions),
-		ServiceManagedIdentityRoleDefinitions:          ServiceManagedIdentityRoleDefinitions{},
-	}
-
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierClusterAPIAzure] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierControlPlane] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierCloudControllerManager] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Cloud Controller Manager",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierIngress] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Cluster Ingress Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierDiskCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierFileCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierImageRegistry] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierCloudNetworkConfig] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Network Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
-		},
-	}
-	publicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierKMS] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Key Vault Crypto User",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
-		},
-	}
-
-	publicRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierDiskCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
-		},
-	}
-
-	publicRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierImageRegistry] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
-		},
-	}
-	publicRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierFileCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
-		},
-	}
-
-	publicRoleDefinitionConfigSet.ServiceManagedIdentityRoleDefinitions = ServiceManagedIdentityRoleDefinitions{
-		&ClusterScopedIdentityRoleDefinition{
-			DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
-		},
-	}
-
-	return publicRoleDefinitionConfigSet
-}
-
-// buildDevRoleDefinitionConfigSet builds the dev role definition config set corresponding to
-// the role definition config set RoleDefinitionConfigSetNameDev.
-func buildDevRoleDefinitionConfigSet() *RoleDefinitionConfigSet {
-	devRoleDefinitionConfigSet := &RoleDefinitionConfigSet{
-		ControlPlaneOperatorsIdentitiesRoleDefinitions: make(ControlPlaneOperatorsIdentitiesRoleDefinitions),
-		DataPlaneOperatorsIdentitiesRoleDefinitions:    make(DataPlaneOperatorsIdentitiesRoleDefinitions),
-		ServiceManagedIdentityRoleDefinitions:          ServiceManagedIdentityRoleDefinitions{},
-	}
-
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierClusterAPIAzure] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierControlPlane] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierCloudControllerManager] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Cloud Controller Manager",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierIngress] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Cluster Ingress Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierDiskCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierFileCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierImageRegistry] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierCloudNetworkConfig] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Network Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
-		},
-	}
-	devRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierKMS] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Key Vault Crypto User",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
-		},
-	}
-
-	devRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierDiskCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
-		},
-	}
-
-	devRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierImageRegistry] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
-		},
-	}
-	devRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierFileCSIDriver] = []*ClusterScopedIdentityRoleDefinition{
-		{
-			DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
-		},
-	}
-
-	devRoleDefinitionConfigSet.ServiceManagedIdentityRoleDefinitions = ServiceManagedIdentityRoleDefinitions{
-		&ClusterScopedIdentityRoleDefinition{
-			DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity",
-			ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
-		},
-	}
-
-	return devRoleDefinitionConfigSet
-}
-
 // NewClusterScopedIdentitiesConfig creates a new ClusterScopedIdentitiesConfig based on the setName RoleDefinitionConfigSetName.
 func NewClusterScopedIdentitiesConfig(setName RoleDefinitionConfigSetName) *ClusterScopedIdentitiesConfig {
-	roleDefinitionConfigSets := newRoleDefinitionConfigSets()
-	controlPlaneOperatorsIdentitiesRoleDefinitions := roleDefinitionConfigSets.getControlPlaneOperatorsIdentitiesRoleDefinitions(setName)
-	dataPlaneOperatorsIdentitiesRoleDefinitions := roleDefinitionConfigSets.getDataPlaneOperatorsIdentitiesRoleDefinitions(setName)
-	serviceManagedIdentityRoleDefinitions := roleDefinitionConfigSets.getServiceManagedIdentityRoleDefinitions(setName)
+	clusterScopedOperatorsSpecs := newClusterScopedOperatorsIdentitySpecs()
+	serviceManagedIdentityRoleDefinitionSpecs := newServiceManagedIdentityRoleDefinitionSpecs()
+	roleDefinitionConfigSet, err := buildRoleDefinitionConfigSet(setName, clusterScopedOperatorsSpecs, serviceManagedIdentityRoleDefinitionSpecs)
+	if err != nil {
+		// This is a programming/configuration error. Fail fast.
+		panic(err)
+	}
+	controlPlaneOperatorsIdentitiesRoleDefinitions := roleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions
+	dataPlaneOperatorsIdentitiesRoleDefinitions := roleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions
+	serviceManagedIdentityRoleDefinitions := roleDefinitionConfigSet.ServiceManagedIdentityRoleDefinitions
 
 	controlPlaneOperatorsIdentities := make(map[ClusterOperatorIdentifier]*ControlPlaneOperatorIdentity)
-
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierClusterAPIAzure] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierClusterAPIAzure,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierClusterAPIAzure],
-			},
-		},
-	}
-
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierControlPlane] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierControlPlane,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierControlPlane],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierCloudControllerManager] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierCloudControllerManager,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierCloudControllerManager],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierIngress] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierIngress,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierIngress],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierDiskCSIDriver] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierDiskCSIDriver,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierDiskCSIDriver],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierFileCSIDriver] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierFileCSIDriver,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierFileCSIDriver],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierImageRegistry] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierImageRegistry,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierImageRegistry],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierCloudNetworkConfig] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierCloudNetworkConfig,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierCloudNetworkConfig],
-			},
-		},
-	}
-	controlPlaneOperatorsIdentities[ClusterOperatorIdentifierKMS] = &ControlPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierKMS,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeOnEnablement},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierKMS],
-			},
-		},
-	}
-
 	dataPlaneOperatorsIdentities := make(map[ClusterOperatorIdentifier]*DataPlaneOperatorIdentity)
-	dataPlaneOperatorsIdentities[ClusterOperatorIdentifierDiskCSIDriver] = &DataPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierDiskCSIDriver,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: dataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierDiskCSIDriver],
-			},
-		},
-		KubernetesServiceAccounts: []*KubernetesServiceAccount{
-			{
-				Name:      "azure-disk-csi-driver-operator",
-				Namespace: "openshift-cluster-csi-drivers",
-			},
-			{
-				Name:      "azure-disk-csi-driver-controller-sa",
-				Namespace: "openshift-cluster-csi-drivers",
-			},
-		},
-	}
 
-	dataPlaneOperatorsIdentities[ClusterOperatorIdentifierImageRegistry] = &DataPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierImageRegistry,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: dataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierImageRegistry],
-			},
-		},
-		KubernetesServiceAccounts: []*KubernetesServiceAccount{
-			{
-				Name:      "cluster-image-registry-operator",
-				Namespace: "openshift-image-registry",
-			},
-			{
-				Name:      "registry",
-				Namespace: "openshift-image-registry",
-			},
-		},
-	}
+	for operator, spec := range clusterScopedOperatorsSpecs {
+		if spec.ControlPlane != nil {
+			controlPlaneOperatorsIdentities[operator] = &ControlPlaneOperatorIdentity{
+				BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
+					ClusterOperatorIdentifier: operator,
+					MinVersionInclusive:       spec.ControlPlane.MinVersionInclusive,
+					MaxVersionInclusive:       spec.ControlPlane.MaxVersionInclusive,
+					Requirement:               spec.ControlPlane.Requirement,
+					BaseClusterScopedIdentity: BaseClusterScopedIdentity{
+						RoleDefinitions: controlPlaneOperatorsIdentitiesRoleDefinitions[operator],
+					},
+				},
+			}
+		}
 
-	dataPlaneOperatorsIdentities[ClusterOperatorIdentifierFileCSIDriver] = &DataPlaneOperatorIdentity{
-		BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
-			ClusterOperatorIdentifier: ClusterOperatorIdentifierFileCSIDriver,
-			MinVersionInclusive:       to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
-			Requirement:               &IdentityRequirement{Type: IdentityRequirementTypeAlways},
-			BaseClusterScopedIdentity: BaseClusterScopedIdentity{
-				RoleDefinitions: dataPlaneOperatorsIdentitiesRoleDefinitions[ClusterOperatorIdentifierFileCSIDriver],
-			},
-		},
-		KubernetesServiceAccounts: []*KubernetesServiceAccount{
-			{
-				Name:      "azure-file-csi-driver-operator",
-				Namespace: "openshift-cluster-csi-drivers",
-			},
-			{
-				Name:      "azure-file-csi-driver-controller-sa",
-				Namespace: "openshift-cluster-csi-drivers",
-			},
-			{
-				Name:      "azure-file-csi-driver-node-sa",
-				Namespace: "openshift-cluster-csi-drivers",
-			},
-		},
+		if spec.DataPlane != nil {
+			dataPlaneOperatorsIdentities[operator] = &DataPlaneOperatorIdentity{
+				BaseClusterScopedOperatorIdentity: BaseClusterScopedOperatorIdentity{
+					ClusterOperatorIdentifier: operator,
+					MinVersionInclusive:       spec.DataPlane.MinVersionInclusive,
+					MaxVersionInclusive:       spec.DataPlane.MaxVersionInclusive,
+					Requirement:               spec.DataPlane.Requirement,
+					BaseClusterScopedIdentity: BaseClusterScopedIdentity{
+						RoleDefinitions: dataPlaneOperatorsIdentitiesRoleDefinitions[operator],
+					},
+				},
+				KubernetesServiceAccounts: spec.DataPlane.KubernetesServiceAccounts,
+			}
+		}
 	}
 
 	serviceManagedIdentity := &ServiceManagedIdentity{
@@ -493,6 +173,14 @@ type BaseClusterScopedIdentity struct {
 	RoleDefinitions []*ClusterScopedIdentityRoleDefinition
 }
 
+// ClusterScopedIdentityRoleDefinition is the configuration of a cluster scoped identity role definition.
+type ClusterScopedIdentityRoleDefinition struct {
+	// DescriptiveName is the friendly/descriptive name of the Azure Role Definition.
+	DescriptiveName string
+	// ResourceID is the resource ID of the Azure Role Definition.
+	ResourceID *azcorearm.ResourceID
+}
+
 // ControlPlaneOperatorIdentity is the configuration for a control plane operator identity.
 type ControlPlaneOperatorIdentity struct {
 	// BaseClusterScopedOperatorIdentity is the base configuration for the control plane operator identity.
@@ -506,6 +194,20 @@ type DataPlaneOperatorIdentity struct {
 	// KubernetesServiceAccounts is the list of Kubernetes Service Accounts needed by the data plane operator.
 	// This information is used to federate an Azure Managed Identity to a K8s Subject.
 	KubernetesServiceAccounts []*KubernetesServiceAccount
+}
+
+// KubernetesServiceAccount is the configuration for a Kubernetes Service Account.
+type KubernetesServiceAccount struct {
+	// Name is the name of the Kubernetes Service Account.
+	Name string
+	// Namespace is the namespace of the Kubernetes Service Account.
+	Namespace string
+}
+
+// AsOidcSubject returns the Kubernetes Service Account as an OIDC subject.
+// The format is "system:serviceaccount:<namespace>:<name>".
+func (s *KubernetesServiceAccount) AsOIDCSubject() string {
+	return fmt.Sprintf("system:serviceaccount:%s:%s", s.Namespace, s.Name)
 }
 
 // ServiceManagedIdentity is the configuration for the cluster scoped service managed identity.
@@ -620,87 +322,428 @@ const (
 	IdentityRequirementTypeOnEnablement IdentityRequirementType = "OnEnablement"
 )
 
-// ClusterScopedIdentityRoleDefinition is the configuration of a cluster scoped identity role definition.
-type ClusterScopedIdentityRoleDefinition struct {
-	// DescriptiveName is the friendly/descriptive name of the Azure Role Definition.
-	DescriptiveName string
-	// ResourceID is the resource ID of the Azure Role Definition.
-	ResourceID *azcorearm.ResourceID
-}
+// controlPlaneOperatorsIdentitiesRoleDefinitions is a set of control plane operators along with their identity role definitions.
+type controlPlaneOperatorsIdentitiesRoleDefinitions map[ClusterOperatorIdentifier][]*ClusterScopedIdentityRoleDefinition
 
-// roleDefinitionConfigSets is the configuration for the role definition config sets.
-// There must be an attribute for each RoleDefinitionConfigSetName defined value.
-type roleDefinitionConfigSets struct {
-	// DevRoleDefinitionConfigSet is the configuration for the DevRoleDefinitionConfigSet role definition config set.
-	DevRoleDefinitionConfigSet *RoleDefinitionConfigSet
-	// PublicRoleDefinitionConfigSet is the configuration for the PublicRoleDefinitionConfigSet role definition config set.
-	PublicRoleDefinitionConfigSet *RoleDefinitionConfigSet
-}
+// dataPlaneOperatorsIdentitiesRoleDefinitions is a set of data plane operators along with their identity role definitions.
+type dataPlaneOperatorsIdentitiesRoleDefinitions map[ClusterOperatorIdentifier][]*ClusterScopedIdentityRoleDefinition
 
-// getControlPlaneOperatorsIdentitiesRoleDefinitions returns the control plane operators identities role definitions for the given role set name.
-// TODO should we error if role set name is not found, or do we assume that we are going to receive an existing roleSetName?
-func (s *roleDefinitionConfigSets) getControlPlaneOperatorsIdentitiesRoleDefinitions(roleSetName RoleDefinitionConfigSetName) ControlPlaneOperatorsIdentitiesRoleDefinitions {
-	switch roleSetName {
-	case RoleDefinitionConfigSetNameDev:
-		return s.DevRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions
-	case RoleDefinitionConfigSetNamePublic:
-		return s.PublicRoleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions
-	}
+// serviceManagedIdentityRoleDefinitions are the role definitions for a service managed identity.
+type serviceManagedIdentityRoleDefinitions []*ClusterScopedIdentityRoleDefinition
 
-	return nil
-}
-
-// getDataPlaneOperatorsIdentitiesRoleDefinitions returns the data plane operators identities role definitions for the given role set name.
-func (s *roleDefinitionConfigSets) getDataPlaneOperatorsIdentitiesRoleDefinitions(roleSetName RoleDefinitionConfigSetName) DataPlaneOperatorsIdentitiesRoleDefinitions {
-	switch roleSetName {
-	case RoleDefinitionConfigSetNameDev:
-		return s.DevRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions
-	case RoleDefinitionConfigSetNamePublic:
-		return s.PublicRoleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions
-	}
-	return nil
-}
-
-// getServiceManagedIdentityRoleDefinitions returns the service managed identity role definitions for the given role set name.
-func (s *roleDefinitionConfigSets) getServiceManagedIdentityRoleDefinitions(roleSetName RoleDefinitionConfigSetName) ServiceManagedIdentityRoleDefinitions {
-	switch roleSetName {
-	case RoleDefinitionConfigSetNameDev:
-		return s.DevRoleDefinitionConfigSet.ServiceManagedIdentityRoleDefinitions
-	case RoleDefinitionConfigSetNamePublic:
-		return s.PublicRoleDefinitionConfigSet.ServiceManagedIdentityRoleDefinitions
-	}
-	return nil
-}
-
-// ControlPlaneOperatorsIdentitiesRoleDefinitions is a set of control plane operators along with their identity role definitions.
-type ControlPlaneOperatorsIdentitiesRoleDefinitions map[ClusterOperatorIdentifier][]*ClusterScopedIdentityRoleDefinition
-
-// DataPlaneOperatorsIdentitiesRoleDefinitions is a set of data plane operators along with their identity role definitions.
-type DataPlaneOperatorsIdentitiesRoleDefinitions map[ClusterOperatorIdentifier][]*ClusterScopedIdentityRoleDefinition
-
-// ServiceManagedIdentityRoleDefinitions are the role definitions for a service managed identity.
-type ServiceManagedIdentityRoleDefinitions []*ClusterScopedIdentityRoleDefinition
-
-// RoleDefinitionConfigSet is the configuration for a role definition config set.
-type RoleDefinitionConfigSet struct {
+// roleDefinitionConfigSet is the configuration for a role definition config set.
+type roleDefinitionConfigSet struct {
 	// ControlPlaneOperatorsIdentitiesRoleDefinitions is the set of control plane operators along with their identity role definitions.
-	ControlPlaneOperatorsIdentitiesRoleDefinitions ControlPlaneOperatorsIdentitiesRoleDefinitions
+	ControlPlaneOperatorsIdentitiesRoleDefinitions controlPlaneOperatorsIdentitiesRoleDefinitions
 	// DataPlaneOperatorsIdentitiesRoleDefinitions is the set of data plane operators along with their identity role definitions.
-	DataPlaneOperatorsIdentitiesRoleDefinitions DataPlaneOperatorsIdentitiesRoleDefinitions
+	DataPlaneOperatorsIdentitiesRoleDefinitions dataPlaneOperatorsIdentitiesRoleDefinitions
 	// ServiceManagedIdentityRoleDefinitions is the set of service managed identity role definitions.
-	ServiceManagedIdentityRoleDefinitions ServiceManagedIdentityRoleDefinitions
+	ServiceManagedIdentityRoleDefinitions serviceManagedIdentityRoleDefinitions
 }
 
-// KubernetesServiceAccount is the configuration for a Kubernetes Service Account.
-type KubernetesServiceAccount struct {
-	// Name is the name of the Kubernetes Service Account.
-	Name string
-	// Namespace is the namespace of the Kubernetes Service Account.
-	Namespace string
+// clusterScopedIdentityRoleDefinitionConfigSetsSpec is the specification of a role definition config set
+type clusterScopedIdentityRoleDefinitionConfigSetsSpec struct {
+	// Dev is the role definition for the RoleDefinitionConfigSetNameDev role definition config set.
+	Dev *ClusterScopedIdentityRoleDefinition
+	// Public is the role definition for the RoleDefinitionConfigSetNamePublic role definition config set.
+	Public *ClusterScopedIdentityRoleDefinition
 }
 
-// AsOidcSubject returns the Kubernetes Service Account as an OIDC subject.
-// The format is "system:serviceaccount:<namespace>:<name>".
-func (s *KubernetesServiceAccount) AsOIDCSubject() string {
-	return fmt.Sprintf("system:serviceaccount:%s:%s", s.Namespace, s.Name)
+// clusterScopedOperatorIdentityPlaneSpec is the specification of a cluster scoped operator identity, independent on
+// whether it is a control plane or a data plane operator.
+type clusterScopedOperatorIdentityPlaneSpec struct {
+	// MinVersionInclusive is the minimum OpenShift version supported by the identity, inclusive.
+	// When not set (nil), it indicates that the cluster scoped operator identity is supported for all OpenShift versions,
+	// or up to MaxVersionInclusive if MaxVersionInclusive is set.
+	// A Pre-release version whose non pre-release part matches MinVersionInclusive is also considered within MinVersionInclusive.
+	MinVersionInclusive *semver.Version
+	// MaxVersionInclusive is the maximum OpenShift version supported by the identity, inclusive.
+	// When not set (nil), it indicates that the cluster scoped operator identity is supported for all OpenShift versions,
+	// or starting from MinVersionInclusive if MinVersionInclusive is set.
+	// A Pre-release version whose non pre-release part matches MaxVersionInclusive is also considered within MaxVersionInclusive.
+	MaxVersionInclusive *semver.Version
+	// Requirement indicates the requirement for the cluster scoped operator identity for a successful installation
+	// and/or update of a Cluster (within the VersionsRange constraints).
+	Requirement *IdentityRequirement
+	// RoleDefinitionsConfigSets is the list of role definition config sets for the cluster scoped operator identity.
+	// Each role definition config set contains the role definitions for a specific role definition config set name.
+	RoleDefinitionsConfigSets []*clusterScopedIdentityRoleDefinitionConfigSetsSpec
+}
+
+// clusterScopedControlPlaneOperatorIdentityPlaneSpec is the specification of a cluster scoped control plane operator identity.
+type clusterScopedControlPlaneOperatorIdentityPlaneSpec struct {
+	// clusterScopedOperatorIdentityPlaneSpec is the base specification for a cluster scoped operator identity.
+	clusterScopedOperatorIdentityPlaneSpec
+}
+
+// clusterScopedDataPlaneOperatorIdentityPlaneSpec is the specification of a cluster scoped data plane operator identity.
+type clusterScopedDataPlaneOperatorIdentityPlaneSpec struct {
+	// clusterScopedOperatorIdentityPlaneSpec is the base specification for a cluster scoped operator identity.
+	clusterScopedOperatorIdentityPlaneSpec
+	// KubernetesServiceAccounts is the list of Kubernetes Service Accounts needed by the data plane operator.
+	// This information is used to federate an Azure Managed Identity to a K8s Subject.
+	KubernetesServiceAccounts []*KubernetesServiceAccount
+}
+
+// clusterScopedOperatorIdentitySpec is the specification of a cluster scoped operator identity, which can be a control plane operator,
+// a data plane operator, or both.
+type clusterScopedOperatorIdentitySpec struct {
+	// ControlPlane is the configuration of the cluster scoped operator on the control plane. If nil, the operator is not a control plane operator.
+	ControlPlane *clusterScopedControlPlaneOperatorIdentityPlaneSpec
+	// DataPlane is the configuration of the cluster scoped operator on the data plane. If nil, the operator is not a data plane operator.
+	DataPlane *clusterScopedDataPlaneOperatorIdentityPlaneSpec
+}
+
+// roleDefinitionsForSetName returns the role definitions for the given role definition config taking as the input the role definition config sets.
+// An error is returned if the role definition config set name is unknown.
+func roleDefinitionsForSetName(setName RoleDefinitionConfigSetName, specs []*clusterScopedIdentityRoleDefinitionConfigSetsSpec) ([]*ClusterScopedIdentityRoleDefinition, error) {
+	out := make([]*ClusterScopedIdentityRoleDefinition, 0, len(specs))
+	for _, s := range specs {
+		var rd *ClusterScopedIdentityRoleDefinition
+		switch setName {
+		case RoleDefinitionConfigSetNameDev:
+			rd = s.Dev
+		case RoleDefinitionConfigSetNamePublic:
+			rd = s.Public
+		default:
+			return nil, fmt.Errorf("unknown role definition config set name %q", setName)
+		}
+
+		out = append(out, rd)
+	}
+	return out, nil
+}
+
+// buildRoleDefinitionConfigSet builds the role definition config set for the given role definition config set name,
+// cluster operator specs, and service managed identity spec.
+// An error is returned if the role definition config set name is unknown or if the role definitions for the given role definition config set name are not found.
+func buildRoleDefinitionConfigSet(
+	setName RoleDefinitionConfigSetName,
+	operatorSpecs map[ClusterOperatorIdentifier]*clusterScopedOperatorIdentitySpec,
+	serviceManagedSpecs []*clusterScopedIdentityRoleDefinitionConfigSetsSpec,
+) (*roleDefinitionConfigSet, error) {
+	roleDefinitionConfigSet := &roleDefinitionConfigSet{
+		ControlPlaneOperatorsIdentitiesRoleDefinitions: make(controlPlaneOperatorsIdentitiesRoleDefinitions),
+		DataPlaneOperatorsIdentitiesRoleDefinitions:    make(dataPlaneOperatorsIdentitiesRoleDefinitions),
+		ServiceManagedIdentityRoleDefinitions:          serviceManagedIdentityRoleDefinitions{},
+	}
+
+	for operator, spec := range operatorSpecs {
+		if spec.ControlPlane != nil {
+			rds, err := roleDefinitionsForSetName(setName, spec.ControlPlane.RoleDefinitionsConfigSets)
+			if err != nil {
+				return nil, err
+			}
+			roleDefinitionConfigSet.ControlPlaneOperatorsIdentitiesRoleDefinitions[operator] = rds
+		}
+
+		if spec.DataPlane != nil {
+			rds, err := roleDefinitionsForSetName(setName, spec.DataPlane.RoleDefinitionsConfigSets)
+			if err != nil {
+				return nil, err
+			}
+			roleDefinitionConfigSet.DataPlaneOperatorsIdentitiesRoleDefinitions[operator] = rds
+		}
+	}
+
+	serviceRds, err := roleDefinitionsForSetName(setName, serviceManagedSpecs)
+	if err != nil {
+		return nil, err
+	}
+	roleDefinitionConfigSet.ServiceManagedIdentityRoleDefinitions = serviceRds
+
+	return roleDefinitionConfigSet, nil
+}
+
+// newServiceManagedIdentityRoleDefinitionSpecs returns the service managed identity role definition specs.
+func newServiceManagedIdentityRoleDefinitionSpecs() []*clusterScopedIdentityRoleDefinitionConfigSetsSpec {
+	serviceManagedIdentityRoleDefinitionSpecs := []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+		{
+			Dev: &ClusterScopedIdentityRoleDefinition{
+				DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity",
+				ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
+			},
+			Public: &ClusterScopedIdentityRoleDefinition{
+				DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity",
+				ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/c0ff367d-66d8-445e-917c-583feb0ef0d4")),
+			},
+		},
+	}
+	return serviceManagedIdentityRoleDefinitionSpecs
+}
+
+// newClusterScopedOperatorsIdentitySpecs returns the cluster scoped operators identity specs.
+func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clusterScopedOperatorIdentitySpec {
+	clusterScopedOperatorsIdentitySpecs := map[ClusterOperatorIdentifier]*clusterScopedOperatorIdentitySpec{
+		ClusterOperatorIdentifierClusterAPIAzure: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
+							},
+						},
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierControlPlane: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Hosted Control Planes Control Plane Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/fc0c873f-45e9-4d0d-a7d1-585aab30c6ed")),
+							},
+						},
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierCloudControllerManager: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Cloud Controller Manager",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Cloud Controller Manager",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/a1f96423-95ce-4224-ab27-4e3dc72facd4")),
+							},
+						},
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierIngress: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Cluster Ingress Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Cluster Ingress Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0336e1d3-7a87-462b-b6db-342b63f7802c")),
+							},
+						},
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierDiskCSIDriver: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+							},
+						},
+					},
+				},
+			},
+			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Disk Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/5b7237c5-45e1-49d6-bc18-a1f62f400748")),
+							},
+						},
+					},
+				},
+				KubernetesServiceAccounts: []*KubernetesServiceAccount{
+					{
+						Name:      "azure-disk-csi-driver-operator",
+						Namespace: "openshift-cluster-csi-drivers",
+					},
+					{
+						Name:      "azure-disk-csi-driver-controller-sa",
+						Namespace: "openshift-cluster-csi-drivers",
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierFileCSIDriver: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+							},
+						},
+					},
+				},
+			},
+			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift File Storage Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/0d7aedc0-15fd-4a67-a412-efad370c947e")),
+							},
+						},
+					},
+				},
+				KubernetesServiceAccounts: []*KubernetesServiceAccount{
+					{
+						Name:      "azure-file-csi-driver-operator",
+						Namespace: "openshift-cluster-csi-drivers",
+					},
+					{
+						Name:      "azure-file-csi-driver-controller-sa",
+						Namespace: "openshift-cluster-csi-drivers",
+					},
+					{
+						Name:      "azure-file-csi-driver-node-sa",
+						Namespace: "openshift-cluster-csi-drivers",
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierImageRegistry: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+							},
+						},
+					},
+				},
+			},
+			DataPlane: &clusterScopedDataPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Image Registry Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/8b32b316-c2f5-4ddf-b05b-83dacd2d08b5")),
+							},
+						},
+					},
+				},
+				KubernetesServiceAccounts: []*KubernetesServiceAccount{
+					{
+						Name:      "cluster-image-registry-operator",
+						Namespace: "openshift-image-registry",
+					},
+					{
+						Name:      "registry",
+						Namespace: "openshift-image-registry",
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierCloudNetworkConfig: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeAlways},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Network Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Azure Red Hat OpenShift Network Operator",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/be7a6435-15ae-4171-8f30-4a343eff9e8f")),
+							},
+						},
+					},
+				},
+			},
+		},
+		ClusterOperatorIdentifierKMS: {
+			ControlPlane: &clusterScopedControlPlaneOperatorIdentityPlaneSpec{
+				clusterScopedOperatorIdentityPlaneSpec: clusterScopedOperatorIdentityPlaneSpec{
+					MinVersionInclusive: to.Ptr(api.Must(semver.ParseTolerant("4.19"))),
+					Requirement:         &IdentityRequirement{Type: IdentityRequirementTypeOnEnablement},
+					RoleDefinitionsConfigSets: []*clusterScopedIdentityRoleDefinitionConfigSetsSpec{
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Key Vault Crypto User",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Key Vault Crypto User",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/12338af0-0e69-4776-bea7-57ae8d297424")),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return clusterScopedOperatorsIdentitySpecs
 }
