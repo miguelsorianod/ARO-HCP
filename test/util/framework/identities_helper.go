@@ -1292,6 +1292,18 @@ func (tc *perItOrDescribeTestContext) ensureCustomRole(
 
 	result, err := roleDefsClient.CreateOrUpdate(ctx, scope, roleDefID, roleDefinition, nil)
 	if err != nil {
+		// Handle race condition: parallel tests may both see 404 on Get, then both
+		// try to create. The loser gets RoleDefinitionIdAlreadyExists — retry Get.
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.ErrorCode == "RoleDefinitionIdAlreadyExists" {
+			ginkgo.GinkgoLogr.Info("Role definition was created by a concurrent test, fetching it",
+				"roleDefID", roleDefID)
+			existingRole, getErr := roleDefsClient.Get(ctx, scope, roleDefID, nil)
+			if getErr != nil {
+				return "", "", fmt.Errorf("role definition already exists but failed to fetch it: %w", getErr)
+			}
+			return *existingRole.ID, *existingRole.Properties.RoleName, nil
+		}
 		return "", "", fmt.Errorf("failed to create role definition: %w", err)
 	}
 
