@@ -13,6 +13,8 @@ param vmSize string
 param minCount int
 param maxCount int
 param osDiskSizeGB int
+param imageGcHighThreshold int = 70
+param imageGcLowThreshold int = 60
 
 param vnetSubnetId string
 param podSubnetId string
@@ -94,6 +96,10 @@ resource userAgentPools 'Microsoft.ContainerService/managedClusters/agentPools@2
       enableFIPS: true
       enableNodePublicIP: false
       kubeletDiskType: 'OS'
+      kubeletConfig: {
+        imageGcHighThreshold: imageGcHighThreshold
+        imageGcLowThreshold: imageGcLowThreshold
+      }
       osDiskType: 'Ephemeral'
       osDiskSizeGB: osDiskSizeGB
       count: minCount
