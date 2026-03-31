@@ -123,11 +123,6 @@ module svcPublicCaching '../modules/acr/public-cache.bicep' = {
         targetRepo: 'k8s-cache/ingress-nginx/*'
       }
       {
-        ruleName: 'quay-redhat-user-workloads'
-        sourceRepo: 'quay.io/redhat-user-workloads/*'
-        targetRepo: 'quay-cache/redhat-user-workloads/*'
-      }
-      {
         ruleName: 'quay-thanos'
         sourceRepo: 'quay.io/thanos/*'
         targetRepo: 'thanos/*'
