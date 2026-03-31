@@ -1082,8 +1082,6 @@ const ServiceManagedIdentityBuiltInRoleID = "c0ff367d-66d8-445e-917c-583feb0ef0d
 
 // IdentityRoleAssignments defines the expected role assignments for a managed identity.
 type IdentityRoleAssignments struct {
-	// BuiltInRoleDefinitionID is the Azure built-in role that should be assigned to this identity
-	BuiltInRoleDefinitionID string
 	// RequiredActions is the complete list of all RBAC actions the identity needs
 	// The validation will check if the built-in role provides these, and create a custom role
 	// with any missing actions
@@ -1102,7 +1100,6 @@ func GetExpectedDefinitions(identityType string) (*IdentityRoleAssignments, erro
 	case ServiceManagedIdentityName:
 		return &IdentityRoleAssignments{
 			// Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
-			BuiltInRoleDefinitionID: ServiceManagedIdentityBuiltInRoleID,
 			RequiredActions: []string{
 				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read",
 				"Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write",
@@ -1134,15 +1131,10 @@ func GetExpectedDefinitions(identityType string) (*IdentityRoleAssignments, erro
 	}
 }
 
-// EnsureIdentityRoleAssignments validates that a managed identity has the built-in role assigned
-// and creates/assigns a custom role with any missing permissions.
-//
-// This simplified approach:
-// 1. Checks if the built-in role (c0ff367d-66d8-445e-917c-583feb0ef0d4) is assigned at target RG
-// 2. Gets the actions from that built-in role
-// 3. Compares with RequiredActions to find missing permissions
-// 4. Creates a custom role with ONLY the missing actions (with predictable hash)
-// 5. Assigns it to the identity
+// EnsureIdentityRoleAssignments creates a custom role with ALL RequiredActions and assigns it
+// to the managed identity at subscription scope. This ensures the identity has every permission
+// it needs, regardless of what the built-in role may or may not grant (the built-in role
+// definition API can report permissions that haven't fully propagated to enforcement yet).
 //
 // Parameters:
 //   - identityName: name of the managed identity to validate
@@ -1192,104 +1184,39 @@ func (tc *perItOrDescribeTestContext) EnsureIdentityRoleAssignments(
 		return fmt.Errorf("failed to get managed identity %s in resource group %s: %w", identityName, identityResourceGroup, err)
 	}
 
-	roleDefinitionsClient, err := armauthorization.NewRoleDefinitionsClient(creds, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create role definitions client: %w", err)
-	}
-
 	// Cleanup any existing E2E custom role assignments for this identity
 	err = tc.cleanupCustomE2ETestRolesAssignmentsForIdentity(ctx, *identity.Properties.PrincipalID)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup custom E2E test roles assignments for identity %s: %w", identityName, err)
 	}
 
-	// Get the built-in role definition to see what actions it provides
-	builtInRoleID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
-		subscriptionID, expectedAssignments.BuiltInRoleDefinitionID)
+	// Always create a custom role with ALL RequiredActions.
+	// We deliberately skip fetching/comparing the built-in role definition because
+	// Azure's role definition API can report permissions before they are enforced,
+	// leading to 403 errors at runtime.
+	ginkgo.GinkgoLogr.Info("Creating custom role with all required actions",
+		"identity", identityName,
+		"actionCount", len(expectedAssignments.RequiredActions))
 
-	ginkgo.GinkgoLogr.Info("Fetching built-in role definition",
-		"identityName", identityName,
-		"builtInRoleID", expectedAssignments.BuiltInRoleDefinitionID)
-
-	builtInRole, err := roleDefinitionsClient.GetByID(ctx, builtInRoleID, nil)
+	// Ensure a custom role with all required actions exists
+	customRoleNamePrefix := E2ECustomRolePrefix + identityType
+	customRoleID, customRoleName, err := tc.ensureCustomRole(ctx, subscriptionID, customRoleNamePrefix, expectedAssignments.RequiredActions)
 	if err != nil {
-		return fmt.Errorf("failed to get built-in role definition %s: %w", builtInRoleID, err)
+		return fmt.Errorf("failed to create custom role for identity %s: %w", identityName, err)
 	}
 
-	// Extract actions from the built-in role
-	grantedActions := make(map[string]bool)
-	if builtInRole.Properties != nil && builtInRole.Properties.Permissions != nil {
-		for _, permission := range builtInRole.Properties.Permissions {
-			if permission.Actions != nil {
-				for _, action := range permission.Actions {
-					if action != nil {
-						grantedActions[*action] = true
-					}
-				}
-			}
-		}
+	// Assign the custom role to the identity at subscription scope
+	err = tc.assignRoleToIdentity(ctx, subscriptionID, *identity.Properties.PrincipalID, customRoleID)
+	if err != nil {
+		return fmt.Errorf("failed to assign custom role to identity %s: %w", identityName, err)
 	}
 
-	ginkgo.GinkgoLogr.Info("Built-in role actions retrieved",
-		"identityName", identityName,
-		"actionsCount", len(grantedActions))
-
-	// Check what actions are missing from the built-in role
-	missingActions := checkMissingPermissions(expectedAssignments.RequiredActions, grantedActions)
-
-	if len(missingActions) > 0 {
-		ginkgo.GinkgoLogr.Info("Identity is missing required permissions, use custom role",
-			"identity", identityName,
-			"missingActions", missingActions)
-
-		// Ensure a custom role with the missing actions exists
-		// Role is created at subscription scope but assigned at target RG
-		customRoleNamePrefix := E2ECustomRolePrefix + identityType
-		customRoleID, customRoleName, err := tc.ensureCustomRole(ctx, subscriptionID, customRoleNamePrefix, missingActions)
-		if err != nil {
-			return fmt.Errorf("failed to create custom role for identity %s: %w", identityName, err)
-		}
-
-		// Assign the custom role to the identity at subscription scope
-		err = tc.assignRoleToIdentity(ctx, subscriptionID, *identity.Properties.PrincipalID, customRoleID)
-		if err != nil {
-			return fmt.Errorf("failed to assign custom role to identity %s: %w", identityName, err)
-		}
-
-		ginkgo.GinkgoLogr.Info("Custom role created and assigned successfully",
-			"identity", identityName,
-			"customRoleName", customRoleName,
-			"customRoleID", customRoleID)
-	} else {
-		ginkgo.GinkgoLogr.Info("Identity permissions validated successfully",
-			"identity", identityName,
-			"grantedActions", len(grantedActions))
-	}
+	ginkgo.GinkgoLogr.Info("Custom role created and assigned successfully",
+		"identity", identityName,
+		"customRoleName", customRoleName,
+		"customRoleID", customRoleID)
 
 	return nil
-}
-
-// checkMissingPermissions checks if all expected permissions are granted.
-func checkMissingPermissions(expected []string, granted map[string]bool) []string {
-	var missing []string
-
-	for _, expectedPerm := range expected {
-		if !hasPermission(expectedPerm, granted) {
-			missing = append(missing, expectedPerm)
-		}
-	}
-
-	return missing
-}
-
-// hasPermission checks if a specific permission is granted
-func hasPermission(required string, granted map[string]bool) bool {
-	// Direct match
-	if granted[required] {
-		return true
-	}
-
-	return false
 }
 
 // ensureCustomRole ensures a custom Azure role definition with the specified actions exists.
@@ -1368,7 +1295,7 @@ func (tc *perItOrDescribeTestContext) ensureCustomRole(
 		return "", "", fmt.Errorf("failed to create role definition: %w", err)
 	}
 
-	ginkgo.GinkgoLogr.Info("Custom role created with missing actions (reusable across e2e tests)",
+	ginkgo.GinkgoLogr.Info("Custom role created (reusable across e2e tests)",
 		"roleName", roleName,
 		"roleID", *result.ID,
 		"roleDefID", roleDefID,
