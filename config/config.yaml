@@ -617,6 +617,8 @@ defaults:
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
     exitOnPanic: true
+    clusterScopedIdentitiesConfig:
+      roleSetName: "public"
   # Admin API
   adminApi:
     audit:
@@ -1095,6 +1097,8 @@ clouds:
       backend:
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        clusterScopedIdentitiesConfig:
+          roleSetName: dev
       # Image Sync
       imageSync:
         ocMirror:
