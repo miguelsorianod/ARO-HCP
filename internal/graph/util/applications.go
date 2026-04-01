@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/applications"
@@ -68,7 +70,9 @@ func (c *Client) CreateApplication(ctx context.Context, displayName string, redi
 	}, nil
 }
 
-// AddPassword adds a password credential to an application
+// AddPassword adds a password credential to an application.
+// Eventual consistency of MSGraph means sometimes you have to wait until the
+// application is fully propagated before adding a password credential.
 func (c *Client) AddPassword(ctx context.Context, appID, displayName string, startTime, endTime time.Time) (*PasswordCredential, error) {
 	// Create password credential
 	passwordCred := models.NewPasswordCredential()
@@ -80,10 +84,25 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	reqBody := applications.NewItemAddPasswordPostRequestBody()
 	reqBody.SetPasswordCredential(passwordCred)
 
-	// Add password to application
-	result, err := c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
-	if err != nil {
-		return nil, fmt.Errorf("add password: %w", err)
+	// Add password to application with retry for eventual consistency
+	var result models.PasswordCredentialable
+	var lastErr error
+	attempts := 0
+	pollErr := wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		attempts++
+		var err error
+		result, err = c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	})
+	if pollErr != nil {
+		if lastErr != nil {
+			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %v; polling error: %w", attempts, lastErr, pollErr)
+		}
+		return nil, fmt.Errorf("add password after %d attempts: %w", attempts, pollErr)
 	}
 
 	return &PasswordCredential{
