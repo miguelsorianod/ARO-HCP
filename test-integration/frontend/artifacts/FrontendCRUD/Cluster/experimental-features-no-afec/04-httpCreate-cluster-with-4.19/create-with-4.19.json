@@ -1,13 +1,9 @@
 {
-	"tags": {
-		"aro-hcp.experimental.cluster.single-replica": "SingleReplica",
-		"aro-hcp.experimental.cluster.size-override": "Minimal"
-	},
 	"identity": {
 		"type": "UserAssigned",
 		"userAssignedIdentities": {}
 	},
-	"name": "feature-flag-test",
+	"name": "create-with-419",
 	"properties": {
 		"api": {
 			"visibility": "Public"
@@ -41,9 +37,9 @@
 		},
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
-			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"networkSecurityGroupId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
 		"version": {
 			"channelGroup": "stable",
