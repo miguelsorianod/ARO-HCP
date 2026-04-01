@@ -684,7 +684,7 @@ spec:
               exec:
                 command:
                 - "/bin/sleep"
-                - "60"
+                - "45"
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false
