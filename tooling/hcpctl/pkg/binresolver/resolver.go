@@ -45,7 +45,7 @@ type BinarySpec struct {
 	AssetPattern        string // template for non-Windows: "{name}-{os}-{arch}.tar.gz"
 	WindowsAssetPattern string // template for Windows: "{name}-{os}-{arch}.exe.zip"
 	ChecksumAsset       string // release asset containing SHA256 checksums (e.g. "SHA256_SUM")
-	Version             string // pin to a specific version (e.g. "v0.0.3"); empty means use latest
+	PinnedVersion       string // pin to a specific version (e.g. "v0.0.3") via --must-gather-clean-version; empty means use latest
 }
 
 // resolverConfig holds configuration for resolving and downloading binaries.
@@ -90,11 +90,11 @@ func (cfg *resolverConfig) resolve(ctx context.Context, spec BinarySpec, explici
 	}
 
 	var version string
-	if spec.Version != "" {
-		if err := validateVersion(spec.Version); err != nil {
+	if spec.PinnedVersion != "" {
+		if err := validateVersion(spec.PinnedVersion); err != nil {
 			return "", fmt.Errorf("invalid pinned version: %w", err)
 		}
-		version = spec.Version
+		version = spec.PinnedVersion
 		logger.V(1).Info("using pinned version", "version", version)
 	} else {
 		var err error
@@ -389,14 +389,14 @@ func validateVersion(version string) error {
 	if version == "" {
 		return fmt.Errorf("version string must not be empty")
 	}
+	if strings.ContainsAny(version, "\x00") {
+		return fmt.Errorf("invalid version string from source: %q (contains null byte)", version)
+	}
 	if strings.ContainsAny(version, `/\`) {
 		return fmt.Errorf("invalid version string from source: %q", version)
 	}
-	if version == ".." || strings.HasPrefix(version, "../") || strings.HasSuffix(version, "/..") || strings.Contains(version, "/../") {
+	if version == ".." {
 		return fmt.Errorf("invalid version string from source: %q", version)
-	}
-	if strings.ContainsAny(version, "\x00") {
-		return fmt.Errorf("invalid version string from source: %q (contains null byte)", version)
 	}
 	if strings.ContainsAny(version, "?#") {
 		return fmt.Errorf("invalid version string from source: %q (contains URL-unsafe characters)", version)
@@ -411,11 +411,22 @@ func validateName(name string) error {
 	if name == "" {
 		return fmt.Errorf("binary name must not be empty")
 	}
-	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
-		return fmt.Errorf("invalid binary name %q: must not contain path separators or '..'", name)
-	}
 	if strings.ContainsAny(name, "\x00") {
 		return fmt.Errorf("invalid binary name %q: must not contain null bytes", name)
+	}
+	if name == "." {
+		return fmt.Errorf("invalid binary name %q: must not be '.'", name)
+	}
+
+	// Reject both native and non-native separators to prevent cross-platform path traversal.
+	hasNativeSeparator := strings.ContainsRune(name, os.PathSeparator)
+	hasNonNativeSeparator := (os.PathSeparator == '/' && strings.ContainsRune(name, '\\')) ||
+		(os.PathSeparator == '\\' && strings.ContainsRune(name, '/'))
+	if hasNativeSeparator || hasNonNativeSeparator {
+		return fmt.Errorf("invalid binary name %q: must not contain path separators", name)
+	}
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("invalid binary name %q: must be a local path component", name)
 	}
 	return nil
 }

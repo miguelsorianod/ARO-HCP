@@ -33,7 +33,7 @@ var MustGatherClean = BinarySpec{
 func ResolveMustGatherClean(ctx context.Context, explicitPath, version, cacheDir string) (string, error) {
 	spec := MustGatherClean
 	if version != "" {
-		spec.Version = version
+		spec.PinnedVersion = version
 	}
 	return Resolve(ctx, spec, explicitPath, cacheDir)
 }

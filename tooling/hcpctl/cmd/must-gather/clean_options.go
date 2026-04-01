@@ -27,13 +27,13 @@ import (
 )
 
 type RawCleanOptions struct {
-	PathToClean             string
-	ServiceConfigPath       string
-	MustGatherCleanBinary   string
-	MustGatherCleanVersion  string
-	CleanedOutputPath       string
-	CleanConfigPath         string
-	CacheDir                string
+	PathToClean            string
+	ServiceConfigPath      string
+	MustGatherCleanBinary  string
+	MustGatherCleanVersion string
+	CleanedOutputPath      string
+	CleanConfigPath        string
+	CacheDir               string
 }
 
 func DefaultCleanOptions() *RawCleanOptions {

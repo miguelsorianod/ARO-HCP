@@ -615,9 +615,9 @@ func TestResolvePinnedVersion(t *testing.T) {
 	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
 
 	spec := BinarySpec{
-		Name:         "test-binary",
-		AssetPattern: "{name}-{os}-{arch}.tar.gz",
-		Version:      "v0.5.0",
+		Name:          "test-binary",
+		AssetPattern:  "{name}-{os}-{arch}.tar.gz",
+		PinnedVersion: "v0.5.0",
 	}
 	asset := assetName(spec)
 
@@ -663,9 +663,9 @@ func TestResolvePinnedVersionSkipsSourceEntirely(t *testing.T) {
 	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
 
 	spec := BinarySpec{
-		Name:         "test-binary",
-		AssetPattern: "{name}-{os}-{arch}.tar.gz",
-		Version:      "v0.5.0",
+		Name:          "test-binary",
+		AssetPattern:  "{name}-{os}-{arch}.tar.gz",
+		PinnedVersion: "v0.5.0",
 	}
 	asset := assetName(spec)
 
@@ -690,9 +690,9 @@ func TestResolvePinnedVersionOfflineAfterCache(t *testing.T) {
 	tarGzData := createTestTarGz(t, "test-binary", binaryContent)
 
 	spec := BinarySpec{
-		Name:         "test-binary",
-		AssetPattern: "{name}-{os}-{arch}.tar.gz",
-		Version:      "v0.5.0",
+		Name:          "test-binary",
+		AssetPattern:  "{name}-{os}-{arch}.tar.gz",
+		PinnedVersion: "v0.5.0",
 	}
 	asset := assetName(spec)
 
@@ -718,10 +718,10 @@ func TestResolvePinnedVersionOfflineAfterCache(t *testing.T) {
 func TestResolvePinnedVersionRejectsInvalid(t *testing.T) {
 	cfg := testConfig(t)
 	spec := BinarySpec{
-		Name:         "test-binary",
-		Source:       &testSource{version: "v1.0.0"},
-		AssetPattern: "{name}-{os}-{arch}.tar.gz",
-		Version:      "../../../etc/evil",
+		Name:          "test-binary",
+		Source:        &testSource{version: "v1.0.0"},
+		AssetPattern:  "{name}-{os}-{arch}.tar.gz",
+		PinnedVersion: "../../../etc/evil",
 	}
 
 	_, err := cfg.resolve(context.Background(), spec, "")

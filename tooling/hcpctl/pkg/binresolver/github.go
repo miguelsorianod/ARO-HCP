@@ -84,7 +84,9 @@ func (s *GitHubSource) LatestTagName(ctx context.Context) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body)
+		if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+			return "", fmt.Errorf("GitHub API returned status %d and failed to read response body: %w", resp.StatusCode, err)
+		}
 		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
@@ -114,7 +116,9 @@ func (s *GitHubSource) Download(ctx context.Context, version, asset string, w io
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body)
+		if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+			return fmt.Errorf("download returned status %d for %s and failed to read response body: %w", resp.StatusCode, url, err)
+		}
 		return fmt.Errorf("download returned status %d for %s", resp.StatusCode, url)
 	}
 
