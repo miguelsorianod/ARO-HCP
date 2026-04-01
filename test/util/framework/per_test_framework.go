@@ -405,6 +405,37 @@ func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Cont
 	return managedResourceGroups, nil
 }
 
+// waitForManagedResourceGroupsDeletion polls findManagedResourceGroups until no managed resource groups remain for the given parent resource group
+// This handles the case where managed RGs are still being deleted (e.g. because the HCP cluster was already in a deleting state prior to cleanup)
+// Returns the remaining managed resource groups (empty if all were deleted)
+func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx context.Context, resourceGroupName string, timeout time.Duration) ([]string, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded waiting for managed resource groups in %s to be deleted", timeout.Minutes(), resourceGroupName))
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			remaining, _ := tc.findManagedResourceGroups(context.Background(), resourceGroupName)
+			return remaining, fmt.Errorf("timed out waiting for managed resource groups in %q to be deleted, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), ctx.Err())
+		case <-time.After(StandardPollInterval):
+		}
+
+		managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to search for managed resource groups while waiting for deletion: %w", err)
+		}
+
+		if len(managedResourceGroups) == 0 {
+			ginkgo.GinkgoLogr.Info("all managed resource groups deleted",
+				"resourceGroup", resourceGroupName)
+			return nil, nil
+		}
+
+		ginkgo.GinkgoLogr.Info("waiting for managed resource group deletion",
+			"resourceGroup", resourceGroupName, "remaining", managedResourceGroups)
+	}
+}
+
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
 // 1. delete all HCP clusters and wait for success
 // 2. check if any managed resource groups are left behind
@@ -447,7 +478,16 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	if len(managedResourceGroups) > 0 {
-		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s", len(managedResourceGroups), resourceGroupName)
+		ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
+			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
+		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+		if err != nil {
+			return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+		}
+	}
+
+	if len(managedResourceGroups) > 0 {
+		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v", len(managedResourceGroups), resourceGroupName, managedResourceGroups)
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
