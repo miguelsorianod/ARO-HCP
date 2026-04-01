@@ -22,6 +22,10 @@ param eventhubEnabled bool
 @description('When true, create resources managed by this deployment')
 param manageInstance bool = true
 
+resource kustoCluster 'Microsoft.Kusto/clusters@2024-04-13' existing = if (kustoEnabled) {
+  name: kustoName
+}
+
 // Kusto Event Hub data connection for AKS audit logs
 resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections@2024-04-13' = if (kustoEnabled && eventhubEnabled && manageInstance) {
   name: '${kustoName}/${databaseName}/${kustoDataConnectionName}'
@@ -34,5 +38,6 @@ resource kustoDataConnection 'Microsoft.Kusto/clusters/databases/dataConnections
     dataFormat: 'JSON'
     compression: 'None'
     mappingRuleName: 'rawAksEventsMapping'
+    managedIdentityResourceId: kustoCluster.id
   }
 }
