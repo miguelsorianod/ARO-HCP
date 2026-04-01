@@ -29,13 +29,17 @@ require (
 	github.com/openshift/api v0.0.0-20260130140113-71e91db96ffc
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
+	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.2
+	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
+	helm.sh/helm/v4 v4.0.0-beta.2
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
+	k8s.io/cli-runtime v0.34.3
 	k8s.io/client-go v0.34.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.34.3
@@ -212,7 +216,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.453 // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.498 // indirect
-	github.com/openshift/hypershift/api v0.0.0-20260226113135-8ab86680f975 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -239,7 +242,6 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tektoncd/pipeline v1.6.0 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
@@ -286,10 +288,8 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	helm.sh/helm/v4 v4.0.0-beta.2 // indirect
 	k8s.io/apiextensions-apiserver v0.34.3 // indirect
 	k8s.io/apiserver v0.34.3 // indirect
-	k8s.io/cli-runtime v0.34.3 // indirect
 	k8s.io/component-base v0.34.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/kubectl v0.34.1 // indirect

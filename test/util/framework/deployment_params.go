@@ -44,6 +44,10 @@ const (
 	DefaultOCPVersionId            = "4.20"
 	DefaultOCPNodePoolVersionId    = "4.20.15"
 	DefaultOCPNodePoolChannelGroup = "stable"
+
+	DefaultPodCIDR      = "10.128.0.0/14"
+	DefaultServiceCIDR  = "172.30.0.0/16"
+	DefaultK8sServiceIP = "172.30.0.1"
 )
 
 type ClusterParams struct {
@@ -122,8 +126,8 @@ func NewDefaultClusterParams() ClusterParams {
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
-			PodCIDR:     "10.128.0.0/14",
-			ServiceCIDR: "172.30.0.0/16",
+			PodCIDR:     DefaultPodCIDR,
+			ServiceCIDR: DefaultServiceCIDR,
 			MachineCIDR: "10.0.0.0/16",
 			HostPrefix:  23,
 		},
@@ -150,6 +154,10 @@ type NodePoolParams struct {
 	OSDiskSizeGiB          int32
 	DiskStorageAccountType string
 	ChannelGroup           string
+	// NodeDrainTimeoutMinutes: how long (in minutes) to respect Pod Disruption Budgets when draining
+	// nodes in this pool (e.g. upgrades, scale-in). Valid: 0 to 10080. 0 = no time limit for that phase.
+	// When omitted from the create payload or nil here, the cluster-configured global nodeDrainTimeoutMinutes kicks in.
+	NodeDrainTimeoutMinutes *int32
 	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string

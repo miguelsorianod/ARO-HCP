@@ -1,0 +1,5 @@
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4\": No Major.Minor.Patch elements found",
+        "target": "properties.version.id"
+      }

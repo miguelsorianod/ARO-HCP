@@ -33,7 +33,7 @@ There is a [`aro-hcp-tests-run-aro-hcp-tests` step](https://steps.ci.openshift.o
 in OpenShift CI step registry which can run a test suite of per-run test cases.
 
 This is used in jobs such as
-`periodic-ci-Azure-ARO-HCP-main-periodic-integration-e2e-parallel`.
+`branch-ci-Azure-ARO-HCP-main-e2e-integration-e2e-parallel`.
 
 #### Running per-run test cases with per-test cluster locally
 
@@ -184,6 +184,11 @@ Currently there are only few such E2E test cases, but in the future, most (but
 not all) of the E2E tests will use ARO-HCP RP API to communicate with ARO HCP
 so that it will be possible to run them in all environments, from development
 environment to production.
+
+To run a single E2E test towards a local environment, you can use the following command:
+```bash
+make e2e-local/run-test TEST_NAME="Customer should be able to create an HCP cluster and manage pull secrets"
+```
 
 ## Guidelines for Writing E2E Test Cases
 
