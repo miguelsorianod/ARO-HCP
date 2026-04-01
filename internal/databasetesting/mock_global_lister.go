@@ -101,6 +101,10 @@ func (g *mockGlobalListers) ActiveOperations() database.GlobalLister[api.Operati
 	return &mockActiveOperationsGlobalLister{client: g.client}
 }
 
+func (g *mockGlobalListers) BillingDocs() database.GlobalLister[database.BillingDocument] {
+	return &mockBillingGlobalLister{client: g.client}
+}
+
 // mockSubscriptionGlobalLister lists all subscriptions across all partitions.
 type mockSubscriptionGlobalLister struct {
 	client *MockDBClient
@@ -258,4 +262,16 @@ func (l *mockControllerGlobalLister) List(ctx context.Context, options *database
 	}
 
 	return newMockIterator(ids, items), nil
+}
+
+// mockBillingGlobalLister lists all billing documents across all partitions.
+type mockBillingGlobalLister struct {
+	client *MockDBClient
+}
+
+func (l *mockBillingGlobalLister) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.BillingDocument], error) {
+	// Billing documents are stored directly (not wrapped in TypedDocument)
+	// For the mock, we'll return an empty iterator since billing documents
+	// aren't typically stored in the mock client's document map in the same way
+	return newMockIterator[database.BillingDocument](nil, nil), nil
 }

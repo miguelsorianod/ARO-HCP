@@ -46,17 +46,22 @@ type GlobalListers interface {
 	ManagementClusterContents() GlobalLister[api.ManagementClusterContent]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
+	BillingDocs() GlobalLister[BillingDocument]
 }
 
 // cosmosGlobalListers implements GlobalListers using a Cosmos DB container client.
 type cosmosGlobalListers struct {
 	resources *azcosmos.ContainerClient
+	billing   *azcosmos.ContainerClient
 }
 
 var _ GlobalListers = &cosmosGlobalListers{}
 
-func NewCosmosGlobalListers(resources *azcosmos.ContainerClient) GlobalListers {
-	return &cosmosGlobalListers{resources: resources}
+func NewCosmosGlobalListers(resources *azcosmos.ContainerClient, billing *azcosmos.ContainerClient) GlobalListers {
+	return &cosmosGlobalListers{
+		resources: resources,
+		billing:   billing,
+	}
 }
 
 func (g *cosmosGlobalListers) Subscriptions() GlobalLister[arm.Subscription] {
@@ -129,6 +134,12 @@ func (g *cosmosGlobalListers) Operations() GlobalLister[api.Operation] {
 func (g *cosmosGlobalListers) ActiveOperations() GlobalLister[api.Operation] {
 	return &cosmosActiveOperationsGlobalLister{
 		containerClient: g.resources,
+	}
+}
+
+func (g *cosmosGlobalListers) BillingDocs() GlobalLister[BillingDocument] {
+	return &cosmosBillingGlobalLister{
+		containerClient: g.billing,
 	}
 }
 
@@ -208,4 +219,31 @@ func (l *cosmosControllerGlobalLister) List(ctx context.Context, options *DBClie
 		return newQueryResourcesSinglePageIterator[api.Controller, GenericDocument[api.Controller]](pager), nil
 	}
 	return newQueryResourcesIterator[api.Controller, GenericDocument[api.Controller]](pager), nil
+}
+
+// cosmosBillingGlobalLister lists all billing documents across all partitions.
+type cosmosBillingGlobalLister struct {
+	containerClient *azcosmos.ContainerClient
+}
+
+func (l *cosmosBillingGlobalLister) List(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[BillingDocument], error) {
+	query := "SELECT * FROM c"
+
+	queryOptions := azcosmos.QueryOptions{
+		PageSizeHint: -1,
+	}
+	if options != nil {
+		if options.PageSizeHint != nil {
+			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
+		}
+		queryOptions.ContinuationToken = options.ContinuationToken
+	}
+
+	partitionKey := azcosmos.NewPartitionKey()
+	pager := l.containerClient.NewQueryItemsPager(query, partitionKey, &queryOptions)
+
+	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
+		return newQueryBillingSinglePageIterator(pager), nil
+	}
+	return newQueryBillingIterator(pager), nil
 }
