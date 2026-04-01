@@ -111,7 +111,7 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	})
 	if pollErr != nil {
 		if lastErr != nil {
-			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %v; polling error: %w", attempts, lastErr, pollErr)
+			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %w; polling error: %w", attempts, lastErr, pollErr)
 		}
 		return nil, fmt.Errorf("add password after %d attempts: %w", attempts, pollErr)
 	}
