@@ -934,6 +934,9 @@ defaults:
         nightly:
           minVersion: 4.19.0-0.nightly-20200101
           maxVersion: ""
+        fast:
+          minVersion: 4.19.0
+          maxVersion: ""
   # Image Sync
   imageSync:
     environmentName: aro-hcp-image-sync
