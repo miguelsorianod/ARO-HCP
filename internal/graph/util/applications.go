@@ -16,6 +16,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/applications"
 	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/models"
+	"github.com/Azure/ARO-HCP/internal/graph/graphsdk/models/odataerrors"
 )
 
 // Application represents a Microsoft Entra application
@@ -94,7 +96,16 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 		result, err = c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
 		if err != nil {
 			lastErr = err
-			return false, nil
+			// Only retry on transient errors (404, 429, 5xx)
+			var odataErr *odataerrors.ODataError
+			if errors.As(err, &odataErr) {
+				code := odataErr.ResponseStatusCode
+				if code == 404 || code == 429 || code >= 500 {
+					return false, nil
+				}
+			}
+			// Non-transient or unknown error, stop retrying
+			return false, err
 		}
 		return true, nil
 	})
