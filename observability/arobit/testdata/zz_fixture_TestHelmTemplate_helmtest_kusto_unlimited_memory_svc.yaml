@@ -210,7 +210,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -234,7 +234,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -258,7 +258,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -281,7 +281,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -305,7 +305,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -338,7 +338,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -438,7 +438,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: c6cca5c823a4b7521023228cd6cb687d5b737d255957c0ed5fa62234c0b75365
+        checksum/configmap: a22039cf9efb0c90c8bd45be8b10d08105f22a7bcecdf1c933176892f85798c6
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

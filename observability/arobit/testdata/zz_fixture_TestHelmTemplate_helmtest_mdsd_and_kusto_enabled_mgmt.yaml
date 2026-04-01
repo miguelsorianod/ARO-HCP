@@ -357,7 +357,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -380,7 +380,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -404,7 +404,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -437,7 +437,7 @@ data:
         upload_file_size            48M
         buffer_file_delete_early    false
         unify_tag                   true
-        store_dir_limit_size        2Gi
+        store_dir_limit_size        1.8GB
         blob_uri_length             128
         scheduler_max_retries       9
         delete_on_max_upload_error  true
@@ -537,7 +537,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 9a0c9e18a4cb2b6507af9aaa2ae1d98c201bed2f284a0da8c1283431d172f4b8
+        checksum/configmap: cf1b65c7c8d1ab1cb2e87209c88bbc01f4c0a59fd84e90718699bb22978f8fee
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

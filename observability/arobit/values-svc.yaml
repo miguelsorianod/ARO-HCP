@@ -71,7 +71,7 @@ forwarder:
     upload_file_size: 48M
     buffer_file_delete_early: Off
     unify_tag: On
-    store_dir_limit_size: 2Gi
+    store_dir_limit_size: 1.8GB
     blob_uri_length: 128
     scheduler_max_retries: 9
     delete_on_max_upload_error: On
