@@ -17,7 +17,6 @@ package explain
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -27,7 +26,7 @@ import (
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Stamp: 1,
+		Stamp: "1",
 	}
 }
 
@@ -38,7 +37,7 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "The name of the region to explain in.")
 	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "Cloud to use for Ev2 configuration, useful for dev mode explanations.")
 	cmd.Flags().StringVar(&opts.RegionShortSuffix, "region-short-suffix", opts.RegionShortSuffix, "Suffix to use for region short-name, useful for dev mode explanations.")
-	cmd.Flags().IntVar(&opts.Stamp, "stamp", opts.Stamp, "Stamp value to use, useful for dev mode explanations.")
+	cmd.Flags().StringVar(&opts.Stamp, "stamp", opts.Stamp, "Stamp value to use, useful for dev mode explanations.")
 
 	cmd.Flags().StringVar(&opts.Path, "path", opts.Path, "Path to the value needing explanation.")
 
@@ -61,7 +60,7 @@ type RawOptions struct {
 	Ev2Cloud            string
 	RegionShortOverride string
 	RegionShortSuffix   string
-	Stamp               int
+	Stamp               string
 
 	Path string
 }
@@ -85,7 +84,7 @@ type completedOptions struct {
 	Ev2Cloud            string
 	RegionShortOverride string
 	RegionShortSuffix   string
-	Stamp               int
+	Stamp               string
 	Path                string
 }
 
@@ -103,7 +102,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
 		{flag: "cloud", name: "cloud", value: &o.Cloud},
 		{flag: "environment", name: "environment", value: &o.Environment},
-		{flag: "region", name: "region", value: &o.Environment},
+		{flag: "region", name: "region", value: &o.Region},
 		{flag: "path", name: "path", value: &o.Path},
 	} {
 		if item.value == nil || *item.value == "" {
@@ -152,7 +151,7 @@ func (opts *Options) ExplainConfiguration(ctx context.Context) error {
 		RegionReplacement:      opts.Region,
 		CloudReplacement:       opts.Cloud,
 		EnvironmentReplacement: opts.Environment,
-		StampReplacement:       strconv.Itoa(opts.Stamp),
+		StampReplacement:       opts.Stamp,
 		Ev2Config:              ev2Cfg,
 	}
 	for key, into := range map[string]*string{

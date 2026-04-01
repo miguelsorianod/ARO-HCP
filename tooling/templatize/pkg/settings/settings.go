@@ -44,7 +44,7 @@ type Parameters struct {
 	// Region is the region for which this environment is rendered.
 	Region string `json:"region"`
 	// CxStamp is the stamp for which this environment is rendered.
-	CxStamp int `json:"cxStamp"`
+	CxStamp string `json:"cxStamp"`
 	// RegionShortOverride is a shell-ism that, when run through `echo`, outputs a replacement for the short region variable from the EV2 central config.
 	RegionShortOverride string `json:"regionShortOverride"`
 	// RegionShortSuffix is a shell-ism that, when run through `echo`, outputs a suffix for the short region variable.
@@ -66,7 +66,7 @@ type EnvironmentParameters struct {
 	Ev2Cloud            string
 	Environment         string
 	Region              string
-	Stamp               int
+	Stamp               string
 	RegionShortOverride string
 	RegionShortSuffix   string
 }
