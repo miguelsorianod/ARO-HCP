@@ -662,24 +662,176 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         alert: 'ArobitForwarderJobUp'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'ArobitForwarderJobUp/{{ $labels.cluster }}'
-          description: '''Arobit forwarder has not been reachable for the past 15 minutes.
-This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
-Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+          description: '''The Arobit forwarder metrics endpoint on cluster {{ $labels.cluster }} has been unreachable for 15 minutes.
 '''
-          info: '''Arobit forwarder has not been reachable for the past 15 minutes.
-This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
-Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+          info: '''The Arobit forwarder metrics endpoint on cluster {{ $labels.cluster }} has been unreachable for 15 minutes.
 '''
           runbook_url: 'TBD'
-          summary: 'Arobit forwarder is unreachable for 15 minutes.'
-          title: 'Arobit forwarder is unreachable for 15 minutes.'
+          summary: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
+          title: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
         }
         expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'LowOutputBytesProcessed'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'LowOutputBytesProcessed/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} output is low.
+The metric fluentbit_output_proc_bytes_total only counts bytes from chunks that were sent successfully, this indicates a problem with the output plugin or low input.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          info: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} output is low.
+The metric fluentbit_output_proc_bytes_total only counts bytes from chunks that were sent successfully, this indicates a problem with the output plugin or low input.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          summary: 'No log data delivered to Kusto by {{ $labels.pod }} for 15 minutes.'
+          title: 'No log data delivered to Kusto by {{ $labels.pod }} for 15 minutes.'
+        }
+        expression: 'sum(rate(fluentbit_output_proc_bytes_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) < 50'
+        for: 'PT15M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitIngestionPaused'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitIngestionPaused/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has paused collecting new log data for at least 5 minutes.
+Ingestion pauses when Fluent Bit\'s internal memory or storage buffers are full, typically caused by backpressure from a slow or failing output.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          info: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has paused collecting new log data for at least 5 minutes.
+Ingestion pauses when Fluent Bit\'s internal memory or storage buffers are full, typically caused by backpressure from a slow or failing output.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          summary: 'Fluent Bit input ingestion paused on {{ $labels.pod }} due to backpressure.'
+          title: 'Fluent Bit input ingestion paused on {{ $labels.pod }} due to backpressure.'
+        }
+        expression: 'sum(fluentbit_input_ingestion_paused) by (cluster, pod) > 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitHighOutputRetries'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitHighOutputRetries/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is retrying chunk delivery.
+Retries occur when the azure_kusto output encounters a recoverable error (e.g. transient network failure, HTTP 429/5xx from Kusto).
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          info: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is retrying chunk delivery.
+Retries occur when the azure_kusto output encounters a recoverable error (e.g. transient network failure, HTTP 429/5xx from Kusto).
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          summary: 'High Kusto output retry rate on {{ $labels.pod }} (> 3/s for 5 min).'
+          title: 'High Kusto output retry rate on {{ $labels.pod }} (> 3/s for 5 min).'
+        }
+        expression: 'sum(rate(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitOutputErrors'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitOutputErrors/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is encountering errors sending log chunks to Kusto.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          info: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is encountering errors sending log chunks to Kusto.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          summary: 'Unrecoverable Kusto output errors on {{ $labels.pod }} - log data is being dropped.'
+          title: 'Unrecoverable Kusto output errors on {{ $labels.pod }} - log data is being dropped.'
+        }
+        expression: 'sum(rate(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FluentBitOutputRetriesExhausted'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FluentBitOutputRetriesExhausted/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has chunks that exceeded the configured Retry_Limit for the Kusto output.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          info: '''Fluent Bit pod {{ $labels.pod }} on cluster {{ $labels.cluster }} has chunks that exceeded the configured Retry_Limit for the Kusto output.
+Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+'''
+          summary: 'Kusto output retries exhausted on {{ $labels.pod }} - chunks discarded after max retries.'
+          title: 'Kusto output retries exhausted on {{ $labels.pod }} - chunks discarded after max retries.'
+        }
+        expression: 'sum(rate(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
+        for: 'PT5M'
         severity: 3
       }
     ]
