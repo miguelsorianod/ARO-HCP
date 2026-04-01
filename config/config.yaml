@@ -658,7 +658,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:0a2e5c49f72a3210d62b862501f287750355531c8270cb29d36befe576064e7b # 6bb2d98 (2026-03-25 21:30)
+      digest: sha256:8826489d7836a8f48dc75990953fcd643f44c6c80d818d2ff92abbcab0283047 # 94e1a67 (2026-04-01 18:23)
     tracing:
       address: ""
       exporter: ""
@@ -853,7 +853,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:b47789207a8e2d7457eacb1314ddcd07ab6cde06a40a322e8e286e20435e516c # af21183ed8e6aa2ef26f0ae07a4580b7d6534444 (2026-03-28 08:20)
+      digest: sha256:ae6f4a44ec71070166cff44f8a0f648a6615d4dccc4c36f5876a77bb64f621fa # 5c701a4c33ab1c2bfdcb861bfec95f0f3dfbe5a7 (2026-04-01 19:22)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     # batch processes
