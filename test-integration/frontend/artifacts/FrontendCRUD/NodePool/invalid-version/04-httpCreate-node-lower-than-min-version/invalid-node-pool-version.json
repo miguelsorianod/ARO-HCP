@@ -1,17 +1,17 @@
 {
-	"name": "illegal-np",
+	"name": "invalid-node-pool-version",
 	"properties": {
 		"autoRepair": true,
+		"autoScaling": {
+			"min": 1,
+			"max": 5
+		},
 		"platform": {
-			"osDisk": {
-				"diskStorageAccountType": "Premium_LRS",
-				"sizeGiB": 64
-			},
 			"vmSize": "large"
 		},
 		"version": {
-			"channelGroup": "stable",
-			"id": "4.20.8"
+			"id": "4.20.0",
+			"channelGroup": "stable"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
