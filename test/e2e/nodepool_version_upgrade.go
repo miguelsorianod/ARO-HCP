@@ -138,7 +138,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.OpenshiftVersionId = nodePoolInitialVersion
 			nodePoolParams.ChannelGroup = channelGroup
-
+			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
 			err = tc.CreateNodePoolFromParam(
 				ctx,
 				*resourceGroup.Name,
