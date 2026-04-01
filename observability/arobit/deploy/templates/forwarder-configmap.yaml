@@ -358,9 +358,12 @@ data:
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogsOcm
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/container-logs-ocm"
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
-{{- else }}
+{{- end }}
+{{- end }}
+
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
@@ -372,9 +375,11 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         azure_kusto_buffer_key frontendLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/frontend-logs"
         {{- template "buffer_settings" . }}
+{{- end }}
 
     [OUTPUT]
         Match aro-hcp-backend.logs
@@ -388,8 +393,10 @@ data:
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key backendLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/backend-logs"
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
+{{- end }}
 
     [OUTPUT]
         Match clusters-service.logs
@@ -403,7 +410,8 @@ data:
         Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key clustersServiceLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/clusters-service"
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
 {{- end }}
     [OUTPUT]
@@ -418,8 +426,10 @@ data:
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogs
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/container-logs"
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
+{{- end }}
 
     [OUTPUT]
         Match kube-events.logs
@@ -433,8 +443,10 @@ data:
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key kubernetesEvents
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/kubernetes-events"
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
+{{- end }}
 
   output-mdsd.conf: |
     # Forward logs to mdsd instance (default port)
@@ -457,5 +469,8 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}/systemd"
+        azure_kusto_buffer_key systemdLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
+{{- end }}

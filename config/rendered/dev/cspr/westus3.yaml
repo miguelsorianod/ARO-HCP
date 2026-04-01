@@ -75,6 +75,7 @@ arobit:
         cpu: 100m
         memory: 256Mi
   kusto:
+    buffering: true
     enabled: true
     environmentName: dev
   mdsd:

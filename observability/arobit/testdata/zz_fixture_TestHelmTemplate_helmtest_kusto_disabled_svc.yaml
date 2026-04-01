@@ -191,6 +191,7 @@ data:
         Match metrics.fluentbit
         Host  0.0.0.0
         Port  9090
+
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
@@ -202,8 +203,8 @@ data:
         Database_Name ServiceLogs
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
+        buffer_dir "/var/kusto"
         azure_kusto_buffer_key frontendLogs
-        buffer_dir "/var/kusto/frontend-logs"
         buffering_enabled           true 
         upload_timeout              1m
         upload_file_size            48M
@@ -227,7 +228,7 @@ data:
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key backendLogs
-        buffer_dir "/var/kusto/backend-logs"
+        buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
         upload_file_size            48M
@@ -251,7 +252,7 @@ data:
         Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key clustersServiceLogs
-        buffer_dir "/var/kusto/clusters-service"
+        buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
         upload_file_size            48M
@@ -274,7 +275,7 @@ data:
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key containerLogs
-        buffer_dir "/var/kusto/container-logs"
+        buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
         upload_file_size            48M
@@ -298,7 +299,7 @@ data:
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key kubernetesEvents
-        buffer_dir "/var/kusto/kubernetes-events"
+        buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
         upload_file_size            48M
@@ -331,7 +332,8 @@ data:
         Database_Name ServiceLogs
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir "/var/kusto/systemd"
+        azure_kusto_buffer_key systemdLogs
+        buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
         upload_file_size            48M
@@ -437,7 +439,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 23cff45237dae33b209c85f6636f993bb54f9adf2e7b09e074e202a5b9762553
+        checksum/configmap: 9de59d94e206c0c671cdd44c59539ce19033f4af5b974a1eb1a636aa052f6c0a
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true

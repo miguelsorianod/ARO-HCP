@@ -64,6 +64,7 @@ forwarder:
     serviceLogsDatabase: {{ .kusto.serviceLogsDatabase }}
     hostedControlPlaneLogsDatabase: {{ .kusto.hostedControlPlaneLogsDatabase }}
     enabled: {{ .arobit.kusto.enabled }}
+    buffering: {{ .arobit.kusto.buffering }}
     ingestionEndpoint: "__kustoDataIngestionUri__"
     buffer_dir: /var/kusto
     buffering_enabled: On

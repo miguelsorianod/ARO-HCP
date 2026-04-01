@@ -1,0 +1,10 @@
+values: ../values-svc.yaml
+name: helmtest-buffering-disabled-svc
+namespace: arobit
+testData:
+  arobit:
+    mdsd:
+      enabled: false
+    kusto:
+      enabled: true
+      buffering: false
