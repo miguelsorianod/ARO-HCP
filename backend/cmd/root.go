@@ -276,6 +276,10 @@ func (f *BackendRootCmdFlags) validate() error {
 		}
 	}
 
+	if f.AzureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNameDev) && f.AzureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNamePublic) {
+		return utils.TrackError(fmt.Errorf("--azure-cluster-scoped-identities-role-set-name must be either '%s' or '%s'", internalazure.RoleDefinitionConfigSetNameDev, internalazure.RoleDefinitionConfigSetNamePublic))
+	}
+
 	return nil
 }
 
