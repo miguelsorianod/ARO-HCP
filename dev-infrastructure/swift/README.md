@@ -6,9 +6,15 @@ The sal_env_vars script stores some basic configuration that is specific to the 
 
 NOTE: Yes when you start creating the SAL, PotNetwork etc you will get logged in and out of Azure becuase we're switching between the mock 1p and the dev sub
 
-You need to create a cluster in dev with the correct vnet tag, instance types and agent pool flags. This can be done with the following;
+You need to create a cluster in dev with the correct vnet tag, instance types and agent pool flags.
 
-`DEPLOY_ENV=swft make entrypoint/Region`
+The default personal dev environment (`DEPLOY_ENV=pers`) already has Swift V2 enabled with `Standard_D4s_v3` nodes (1 secondary NIC). This is sufficient for basic Swift testing.
+
+`make personal-dev-env`
+
+If you need a larger management cluster with more secondary NICs (e.g. `Standard_D16s_v3` with 7 secondary NICs), use the dedicated Swift environment instead:
+
+`DEPLOY_ENV=swft make personal-dev-env`
 
 1. Port forward to the aro-hcp frontend
 

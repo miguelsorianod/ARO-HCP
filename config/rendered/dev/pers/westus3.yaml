@@ -522,8 +522,8 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: false
-    enableSwiftV2Vnet: false
+    enableSwiftV2Nodepools: true
+    enableSwiftV2Vnet: true
     etcd:
       name: ah-pers-me-usw3test-1
       private: true
@@ -551,7 +551,7 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D2s_v3
+      vmSize: Standard_D4s_v3
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:

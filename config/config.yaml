@@ -1387,12 +1387,14 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D2s_v3
+                vmSize: Standard_D4s_v3
               userAgentPool:
                 maxCount: 6
                 osDiskSizeGB: 100
                 vmSize: Standard_D4s_v3
                 secondaryNicCount: 1
+              enableSwiftV2Vnet: true
+              enableSwiftV2Nodepools: true
             jaeger:
               deploy: false
             applyKubeletFixes: false
