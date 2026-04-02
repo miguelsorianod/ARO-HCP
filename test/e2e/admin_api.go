@@ -454,7 +454,7 @@ var _ = Describe("SRE", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("409"))
 			Expect(err.Error()).To(ContainSubstring("Conflict"))
-			Expect(err.Error()).To(ContainSubstring("Diagnostics might be disabled"))
+			Expect(err.Error()).To(ContainSubstring("Boot diagnostics are unexpectedly not enabled"))
 			Expect(err.Error()).To(ContainSubstring(vmName))
 		})
 })
