@@ -38,8 +38,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-var _ = Describe("Control plane automated z-stream upgrade with candidate channel", func() {
-	DescribeTable("should perform an automated control plane z-stream upgrade",
+var _ = Describe("Service Provider", func() {
+	DescribeTable("should upgrade the control plane z-stream automatically on behalf of the customer",
 		func(ctx context.Context, minorVersion string, baseInstallVersion string) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-zstream-"
@@ -71,8 +71,12 @@ var _ = Describe("Control plane automated z-stream upgrade with candidate channe
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
-			clusterParams.ChannelGroup = "candidate"
 			clusterParams.OpenshiftVersionId = installVersion
+
+			// We use the candidate channel to potentially catch early z-stream upgrades.
+			// issues before they reach stable.
+			By("using the candidate channel")
+			clusterParams.ChannelGroup = "candidate"
 
 			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-zstream-upgrade-"+versionLabel, tc.Location())
