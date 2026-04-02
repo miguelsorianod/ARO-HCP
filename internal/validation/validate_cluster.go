@@ -270,6 +270,9 @@ var (
 	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
 	}
+	toServiceProviderClusterUID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+		return &oldObj.ClusterUID
+	}
 )
 
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
@@ -306,6 +309,14 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	}
 	// We can validate URL unconditionally because the URL validator accepts an empty string as the URL
 	errs = append(errs, URL(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
+
+	// ClusterUID      string                         `json:"clusterUID,omitempty"`
+	// ClusterUID is always generated server-side by admission.MutateClusterCreate().
+	// Both preflight and real cluster creation call admission before validation.
+	if op.Type == operation.Create {
+		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, nil)...)
+	}
+	errs = append(errs, validate.ImmutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, toServiceProviderClusterUID))...)
 
 	return errs
 }

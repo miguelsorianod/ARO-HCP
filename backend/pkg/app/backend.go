@@ -36,6 +36,7 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
@@ -259,6 +260,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, subscriptionLister := backendInformers.Subscriptions()
 	activeOperationInformer, activeOperationLister := backendInformers.ActiveOperations()
 
+	_, clusterLister := backendInformers.Clusters()
+	_, billingLister := backendInformers.BillingDocs()
+
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
 	dataDumpController := controllerutils.NewClusterWatchingController(
@@ -267,7 +271,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",
 		operationcontrollers.NewOperationClusterCreateSynchronizer(
-			b.options.AzureLocation,
 			b.options.CosmosDBClient,
 			b.options.ClustersServiceClient,
 			http.DefaultClient,
@@ -403,6 +406,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.CosmosDBClient, subscriptionLister)
+	backfillClusterUIDController := controllerutils.NewClusterWatchingController(
+		"BackfillClusterUID", b.options.CosmosDBClient, backendInformers, 60*time.Minute,
+		mismatchcontrollers.NewBackfillClusterUIDController(utilsclock.RealClock{}, b.options.CosmosDBClient, clusterLister))
+	orphanedBillingCleanupController := billingcontrollers.NewOrphanedBillingCleanupController(utilsclock.RealClock{}, b.options.CosmosDBClient, clusterLister, billingLister)
+	createBillingDocController := controllerutils.NewClusterWatchingController(
+		"CreateBillingDoc", b.options.CosmosDBClient, backendInformers, 60*time.Second,
+		billingcontrollers.NewCreateBillingDocController(utilsclock.RealClock{}, b.options.AzureLocation, b.options.CosmosDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.CosmosDBClient,
 		activeOperationLister,
@@ -522,6 +532,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMatchingClusterController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
+				go backfillClusterUIDController.Run(ctx, 20)
+				go orphanedBillingCleanupController.Run(ctx, 20)
+				go createBillingDocController.Run(ctx, 20)
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
