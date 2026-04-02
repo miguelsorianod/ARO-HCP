@@ -38,7 +38,7 @@ func NewCommand() (*cobra.Command, error) {
 }
 
 func runInspect(ctx context.Context, opts *RawOptions) error {
-	validated, err := opts.Validate()
+	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err
 	}

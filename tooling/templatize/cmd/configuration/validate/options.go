@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -189,7 +188,7 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 				for _, region := range ev2Contexts[cloud] {
 					contexts[cloud][env] = append(contexts[cloud][env], RegionContext{
 						Region: region,
-						Stamp:  999, // we want to validate that all of our names still work, even with large stamp numbers
+						Stamp:  "99a", // we want to validate that all of our names still work, even with large stamps
 					})
 				}
 			}
@@ -248,7 +247,7 @@ type RegionContext struct {
 	Ev2Cloud            string
 	RegionShortOverride string
 	RegionShortSuffix   string
-	Stamp               int
+	Stamp               string
 }
 
 func ValidateServiceConfig(
@@ -309,7 +308,7 @@ func ValidateServiceConfig(
 					RegionReplacement:      region,
 					CloudReplacement:       cloud,
 					EnvironmentReplacement: environment,
-					StampReplacement:       strconv.Itoa(regionCtx.Stamp),
+					StampReplacement:       regionCtx.Stamp,
 					Ev2Config:              ev2Cfg,
 				}
 				for key, into := range map[string]*string{
@@ -534,7 +533,7 @@ func renderDiff(
 		Stamp:             regionCtx.Stamp,
 		Output:            previousConfig,
 	}
-	validated, err := opts.Validate()
+	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to validate render options: %w", err)
 	}

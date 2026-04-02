@@ -17,7 +17,6 @@ package options
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -157,7 +156,7 @@ func (o *RawRolloutOptions) Validate(ctx context.Context) (*ValidatedRolloutOpti
 		o.Region = region
 		o.RegionShortSuffix = env.RegionShortSuffix
 		o.RegionShortOverride = env.RegionShortOverride
-		o.Stamp = strconv.Itoa(env.Stamp)
+		o.Stamp = env.Stamp
 		subscriptions = devSettings.Subscriptions
 	}
 

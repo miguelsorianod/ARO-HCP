@@ -20,7 +20,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -29,11 +28,13 @@ import (
 	"github.com/Azure/ARO-Tools/config"
 	"github.com/Azure/ARO-Tools/config/ev2config"
 	"github.com/Azure/ARO-Tools/config/types"
+
+	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/settings"
 )
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
-		Stamp:  1,
+		Stamp:  "1",
 		Output: "-",
 	}
 }
@@ -47,12 +48,14 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Output, "output", opts.Output, "Output file to render to. Set to '-' for stdout.")
 	cmd.Flags().StringVar(&opts.Ev2Cloud, "ev2-cloud", opts.Ev2Cloud, "Cloud to use for Ev2 configuration, useful for dev mode rendering.")
 	cmd.Flags().StringVar(&opts.RegionShortSuffix, "region-short-suffix", opts.RegionShortSuffix, "Suffix to use for region short-name, useful for dev mode rendering.")
-	cmd.Flags().IntVar(&opts.Stamp, "stamp", opts.Stamp, "Stamp value to use, useful for dev mode rendering.")
+	cmd.Flags().StringVar(&opts.Stamp, "stamp", opts.Stamp, "Stamp value to use, useful for dev mode rendering.")
 	cmd.Flags().BoolVar(&opts.SkipSchemaValidation, "skip-schema-validation", opts.SkipSchemaValidation, "Skip JSON schema validation of the rendered config.")
+	cmd.Flags().StringVar(&opts.DevSettingsFile, "dev-settings-file", opts.DevSettingsFile, "File to load environment details from. Uses --cloud and --environment to resolve defaults.")
 
 	for _, flag := range []string{
 		"service-config-file",
 		"config-file-override",
+		"dev-settings-file",
 	} {
 		if err := cmd.MarkFlagFilename(flag); err != nil {
 			return fmt.Errorf("failed to mark flag %q as a file: %w", flag, err)
@@ -71,9 +74,11 @@ type RawOptions struct {
 	Ev2Cloud             string
 	RegionShortOverride  string
 	RegionShortSuffix    string
-	Stamp                int
+	Stamp                string
 	Output               string
 	SkipSchemaValidation bool
+
+	DevSettingsFile string
 }
 
 // validatedOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -95,7 +100,7 @@ type completedOptions struct {
 	Ev2Cloud             string
 	RegionShortOverride  string
 	RegionShortSuffix    string
-	Stamp                int
+	Stamp                string
 	Output               io.WriteCloser
 	SkipSchemaValidation bool
 }
@@ -105,7 +110,42 @@ type Options struct {
 	*completedOptions
 }
 
-func (o *RawOptions) Validate() (*ValidatedOptions, error) {
+func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
+	if o.DevSettingsFile != "" {
+		if o.Cloud == "" {
+			return nil, fmt.Errorf("provide the cloud with --cloud when using --dev-settings-file")
+		}
+		if o.Environment == "" {
+			return nil, fmt.Errorf("provide the environment with --environment when using --dev-settings-file")
+		}
+
+		devSettings, err := settings.Load(o.DevSettingsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load developer settings: %w", err)
+		}
+
+		env, err := devSettings.Resolve(ctx, o.Cloud, o.Environment)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve environment %s in cloud %s: %w", o.Environment, o.Cloud, err)
+		}
+
+		if o.Region == "" {
+			o.Region = env.Region
+		}
+		if o.Ev2Cloud == "" {
+			o.Ev2Cloud = env.Ev2Cloud
+		}
+		if o.RegionShortSuffix == "" {
+			o.RegionShortSuffix = env.RegionShortSuffix
+		}
+		if o.RegionShortOverride == "" {
+			o.RegionShortOverride = env.RegionShortOverride
+		}
+		if o.Stamp == "" {
+			o.Stamp = env.Stamp
+		}
+	}
+
 	for _, item := range []struct {
 		flag  string
 		name  string
@@ -114,7 +154,7 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 		{flag: "service-config-file", name: "service configuration file", value: &o.ServiceConfigFile},
 		{flag: "cloud", name: "cloud", value: &o.Cloud},
 		{flag: "environment", name: "environment", value: &o.Environment},
-		{flag: "region", name: "region", value: &o.Environment},
+		{flag: "region", name: "region", value: &o.Region},
 		{flag: "output", name: "output destination", value: &o.Output},
 	} {
 		if item.value == nil || *item.value == "" {
@@ -191,7 +231,7 @@ func (opts *Options) RenderServiceConfig(ctx context.Context) error {
 		RegionReplacement:      opts.Region,
 		CloudReplacement:       opts.Cloud,
 		EnvironmentReplacement: opts.Environment,
-		StampReplacement:       strconv.Itoa(opts.Stamp),
+		StampReplacement:       opts.Stamp,
 		Ev2Config:              ev2Cfg,
 	}
 	for key, into := range map[string]*string{
