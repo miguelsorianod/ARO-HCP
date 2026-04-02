@@ -243,6 +243,14 @@ defaults:
         ownerIds: ""
         useSNI: true
         manage: true
+      publish:
+        buildId: 0
+        packageName: "empty-sentinel"
+        betaPackageName: "empty-sentinel"
+        betaCertificate:
+          # ev2.assistedId.certificate can be used for primary endpoint, but the beta endpoint requires a different certificate
+          keyVault: "empty-sentinel"
+          name: "empty-sentinel"
   kusto:
     enableAutoScale: false
     manageInstance: false

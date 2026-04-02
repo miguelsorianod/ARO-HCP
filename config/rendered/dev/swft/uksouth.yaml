@@ -316,6 +316,13 @@ geneva:
       softDelete: true
       tagKey: aroHCPPurpose
       tagValue: geneva-actions
+    publish:
+      betaCertificate:
+        keyVault: empty-sentinel
+        name: empty-sentinel
+      betaPackageName: empty-sentinel
+      buildId: 0
+      packageName: empty-sentinel
     serviceTag: GenevaActions
     targetRegion: UK South
   logs:
