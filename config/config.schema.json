@@ -641,6 +641,23 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "clusterScopedIdentitiesConfig": {
+      "type": "object",
+      "properties": {
+        "roleSetName": {
+          "type": "string",
+          "enum": [
+            "dev",
+            "public"
+          ],
+          "description": "The role set name refers to a particular set of azure role definitions. What role definitions are used by each cluster scoped identity for each role set and the role set names themselves are defined as part of application code. The role set names are independent from the azure cloud type."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "roleSetName"
+      ]
+    },
     "backendMaestroConfig": {
       "type": "object",
       "additionalProperties": false,
@@ -1358,6 +1375,9 @@
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
+        },
+        "clusterScopedIdentitiesConfig": {
+          "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
       },
       "additionalProperties": false,
@@ -1368,7 +1388,8 @@
         "managedIdentityName",
         "azureRuntimeConfig",
         "maestro",
-        "exitOnPanic"
+        "exitOnPanic",
+        "clusterScopedIdentitiesConfig"
       ]
     },
     "sessiongate": {

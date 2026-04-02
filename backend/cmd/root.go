@@ -60,6 +60,7 @@ type BackendRootCmdFlags struct {
 	InsecureAzureManagedIdentityMockTenantID                                                      string
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
+	AzureClusterScopedIdentitiesRoleSetName                                                       string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -182,6 +183,13 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		f.InsecureAzureARMPermissionsManagerIdentityTenantID,
 		"The tenant id of the ARM Permissions Manager identity. When set, it must be set in combination with the '--insecure-azure-arm-permissions-manager-identity-certificate-bundle-path' and "+
 			"'--insecure-azure-arm-permissions-manager-identity-client-id' flags.",
+	)
+
+	cmd.Flags().StringVar(
+		&f.AzureClusterScopedIdentitiesRoleSetName,
+		"azure-cluster-scoped-identities-role-set-name",
+		f.AzureClusterScopedIdentitiesRoleSetName,
+		"The name of the cluster scoped identities role set to use. It is used to select the appropriate set of operator role definitions associated to the cluster scoped identities. Accepted values: [dev, public].",
 	)
 
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")

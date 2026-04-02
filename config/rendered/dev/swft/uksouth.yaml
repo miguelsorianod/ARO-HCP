@@ -97,6 +97,8 @@ azureRegionAvailabilityZoneCount: 3
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  clusterScopedIdentitiesConfig:
+    roleSetName: dev
   exitOnPanic: true
   image:
     digest: sha256:ee90fe51b01cc19452db90df72e709b9de16bfb281562ae26ed50ce9b7f90e29
