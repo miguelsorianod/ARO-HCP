@@ -101,27 +101,27 @@ tests:
     # Perfect availability for 2+ hours
     values: "1+0x150"
   promql_expr_test:
-  # Test sum_over_time_30m (30m window is left-open: (60m, 90m] = 30 samples)
+  # Test sum_over_time_30m (30m range includes both endpoints: [60m, 90m] = 31 samples)
   - expr: hostedClusterAPI_kubeapiserver_available:sum_over_time_30m{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
     - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sum_over_time_30m", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
-      value: 30
+      value: 31
   # Test count_over_time_30m
   - expr: hostedClusterAPI_kubeapiserver_available:count_over_time_30m{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
     - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:count_over_time_30m", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
-      value: 30
-  # Test sum_over_time_1h (1h window is left-open: (30m, 90m] = 60 samples)
+      value: 31
+  # Test sum_over_time_1h (1h range includes both endpoints: [30m, 90m] = 61 samples)
   - expr: hostedClusterAPI_kubeapiserver_available:sum_over_time_1h{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
     - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sum_over_time_1h", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
-      value: 60
+      value: 61
   # Test count_over_time_1h
   - expr: hostedClusterAPI_kubeapiserver_available:count_over_time_1h{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
     - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:count_over_time_1h", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
-      value: 60
+      value: 61
