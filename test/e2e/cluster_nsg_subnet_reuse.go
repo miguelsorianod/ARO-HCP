@@ -101,7 +101,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams1,
-				0,
+				45*time.Minute,
 			)
 			Expect(err).NotTo(HaveOccurred())
 
