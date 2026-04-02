@@ -103,7 +103,12 @@ var _ = Describe("Customer", func() {
 			By("creating cluster parameters at control plane version")
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = targetMinor
+			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			if cincinatti.IsCincinnatiVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))
+			}
+			Expect(err).NotTo(HaveOccurred())
+			clusterParams.OpenshiftVersionId = clusterInstallVersion
 			clusterParams.ChannelGroup = channelGroup
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-np-upgrade-"+suffix, "-managed", 64)
 
@@ -121,7 +126,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred())
 
-			By(fmt.Sprintf("creating the HCP cluster with version %s", targetMinor))
+			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
 			err = tc.CreateHCPClusterFromParam(
 				ctx,
 				GinkgoLogr,
