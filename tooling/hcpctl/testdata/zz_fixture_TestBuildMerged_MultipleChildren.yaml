@@ -25,7 +25,7 @@ kql: |-
           // Backend logs: ARO HCP backend service operations for this cluster
           database('ServiceLogs').table('backendLogs')
           | where timestamp between (_startTime .. _endTime)
-          | where resource_id in (cluster_resource_id)
+          | where resource_group == 'test-rg'
           | project timestamp, container_name, msg, log
       )
   | order by timestamp asc
