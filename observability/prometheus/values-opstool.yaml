@@ -97,6 +97,7 @@ kube-prometheus-stack:
               - infra
 # config for the files in templates/
 prometheusSpec:
+  agentMode: true
   image:
     registry: "{{ .opstool.prometheus.prometheusSpec.image.registry }}"
     repository: "{{ .opstool.prometheus.prometheusSpec.image.repository }}"

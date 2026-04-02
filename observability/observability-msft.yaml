@@ -65,7 +65,6 @@ prometheusRules:
     - PrometheusBadConfig
     - PrometheusNotIngestingSamples
     - PrometheusRemoteStorageFailures
-    - PrometheusRuleFailures
     - PrometheusScrapeSampleLimitHit
   - groupName: prometheus-operator-rules
     alerts:

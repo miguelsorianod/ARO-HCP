@@ -75,6 +75,7 @@ kube-prometheus-stack:
       sha: "{{ .svc.prometheus.kubeStateMetrics.image.digest }}"
 # this is our own config for the files in templates/
 prometheusSpec:
+  agentMode: {{ .svc.prometheus.agentMode }}
   image:
     registry: "{{ .svc.prometheus.prometheusSpec.image.registry }}"
     repository: "{{ .svc.prometheus.prometheusSpec.image.repository }}"

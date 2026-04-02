@@ -443,6 +443,7 @@ defaults:
         tagValue: etcd-encryption
       clusterOutboundIPAddressIPTags: ""
     prometheus:
+      agentMode: true
       namespace: prometheus
       namespaceNetworkPolicyGroup: ""
       prometheusOperator:
@@ -562,6 +563,7 @@ defaults:
       enableSwiftV2Vnet: true
       enableSwiftV2Nodepools: true
     prometheus:
+      agentMode: true
       namespace: prometheus
       namespaceNetworkPolicyGroup: monitoring
       prometheusOperator:

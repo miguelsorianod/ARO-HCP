@@ -68543,8 +68543,8 @@ spec:
       app.kubernetes.io/managed-by: prometheus-operator
 ---
 # Source: hcp-prometheus/templates/prometheus.yaml
-apiVersion: monitoring.coreos.com/v1
-kind: Prometheus
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: PrometheusAgent
 metadata:
   name: prometheus
   namespace: 'prometheus'
@@ -68568,8 +68568,6 @@ spec:
             values:
             - infra
   automountServiceAccountToken: true
-  enableAdminAPI: false
-  evaluationInterval: 30s
   hostNetwork: false
   listenLocal: false
   logFormat: logfmt
@@ -68586,11 +68584,7 @@ spec:
     matchLabels:
       release: arohcp-monitor
   replicas: 1
-  retention: '1d'
-  retentionSize: '45GiB'
   routePrefix: /
-  ruleNamespaceSelector: {}
-  ruleSelector: {}
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
     matchLabels:
@@ -68607,15 +68601,6 @@ spec:
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
   shards: 1
-  storage:
-    volumeClaimTemplate:
-      spec:
-        accessModes:
-        - ReadWriteOnce
-        resources:
-          requests:
-            storage: 50Gi
-        storageClassName: managed-premium
   tolerations:
   - effect: NoSchedule
     key: infra
@@ -68634,8 +68619,6 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
-  tsdb:
-    outOfOrderTimeWindow: 0s
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-mgmt-1'
