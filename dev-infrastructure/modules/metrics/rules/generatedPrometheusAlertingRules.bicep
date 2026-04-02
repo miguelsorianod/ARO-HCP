@@ -1025,7 +1025,7 @@ This may indicate that finalizers are stuck or resources are failing to cleanup.
           summary: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
           title: 'Cluster {{ $labels.exported_namespace }} stuck deleting'
         }
-        expression: 'sum by (exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
         for: 'PT5M'
         severity: 3
       }
