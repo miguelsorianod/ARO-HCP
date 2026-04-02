@@ -30,3 +30,57 @@ tests:
   - eval_time: 10m # At this point, the condition has held for 10 minutes
     alertname: BackendOperationErrorRate
     exp_alerts: []
+# Test: BackendControllerRetryHotLoop fires when retry ratio > 50%
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+80x25" # 80 retries per minute
+  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+100x25" # 100 adds per minute → retry ratio = 80%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        name: OperationClusterCreate
+        severity: critical
+      exp_annotations:
+        description: 'Backend controller workqueue OperationClusterCreate has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'TBD'
+        summary: 'Backend controller workqueue OperationClusterCreate retry hot loop'
+# Test: BackendControllerRetryHotLoop does not fire when retry ratio < 50%
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+20x25" # 20 retries per minute
+  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "0+100x25" # 100 adds per minute → retry ratio = 20%
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: BackendControllerRetryHotLoop
+    exp_alerts: []
+# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 5m
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "15x10" # depth stays at 15 for 10 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: BackendControllerQueueDepthHigh
+    exp_alerts:
+    - exp_labels:
+        name: OperationClusterCreate
+        severity: warning
+      exp_annotations:
+        description: 'Backend controller workqueue OperationClusterCreate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+        runbook_url: 'TBD'
+        summary: 'Backend controller workqueue OperationClusterCreate depth is high'
+# Test: BackendControllerQueueDepthHigh does not fire when depth <= 10
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{name="OperationClusterCreate", namespace="aro-hcp"}'
+    values: "8x10" # depth stays at 8 for 10 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: BackendControllerQueueDepthHigh
+    exp_alerts: []
