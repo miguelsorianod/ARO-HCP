@@ -17,11 +17,14 @@ package verifiers
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/ginkgo/v2"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -143,4 +146,35 @@ func (v verifyHostedControlPlaneYStreamUpgrade) Verify(ctx context.Context, admi
 // contains at least one parseable version in previousMinor and at least one in targetMinor.
 func VerifyHostedControlPlaneYStreamUpgrade(previousMinor, targetMinor string) HostedClusterVerifier {
 	return verifyHostedControlPlaneYStreamUpgrade{previousMinor: previousMinor, targetMinor: targetMinor}
+}
+
+type verifyKubeAPIServerServerVersionUpgraded struct {
+	preUpgrade *version.Info
+}
+
+func (v verifyKubeAPIServerServerVersionUpgraded) Name() string {
+	return "VerifyKubeAPIServerServerVersionUpgraded"
+}
+
+func (v verifyKubeAPIServerServerVersionUpgraded) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	clientset, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("create kubernetes clientset: %w", err)
+	}
+	postUpgrade, err := clientset.Discovery().ServerVersion()
+	if err != nil {
+		return fmt.Errorf("get kube-apiserver ServerVersion: %w", err)
+	}
+	if reflect.DeepEqual(v.preUpgrade, postUpgrade) {
+		ginkgo.GinkgoLogr.Info("kube-apiserver ServerVersion unchanged from pre-upgrade",
+			"preUpgrade", v.preUpgrade, "postUpgrade", postUpgrade)
+		return fmt.Errorf("kube-apiserver ServerVersion not updated (unchanged from pre-upgrade)")
+	}
+	return nil
+}
+
+// VerifyKubeAPIServerServerVersionUpgraded fails if the kube-apiserver version is the same as before the upgrade.
+// preUpgrade is the kubernetes discovery ServerVersion (/version) read from the cluster before upgrading.
+func VerifyKubeAPIServerServerVersionUpgraded(preUpgrade *version.Info) HostedClusterVerifier {
+	return verifyKubeAPIServerServerVersionUpgraded{preUpgrade: preUpgrade}
 }
