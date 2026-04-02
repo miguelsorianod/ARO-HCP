@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepoolpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
@@ -261,8 +262,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
-	dataDumpController := controllerutils.NewClusterWatchingController(
-		"DataDump", b.options.CosmosDBClient, backendInformers, 1*time.Minute, controllers.NewDataDumpController(activeOperationLister, b.options.CosmosDBClient))
+	dataDumpController := datadumpcontrollers.NewDataDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
+	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers, b.options.ClustersServiceClient)
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
 		"OperationClusterCreate",
@@ -504,6 +505,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go backendInformers.RunWithContext(ctx)
 
 				go dataDumpController.Run(ctx, 20)
+				go csStateDumpController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)

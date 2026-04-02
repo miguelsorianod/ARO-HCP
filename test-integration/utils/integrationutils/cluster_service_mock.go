@@ -15,7 +15,6 @@
 package integrationutils
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -39,6 +38,7 @@ import (
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
@@ -377,7 +377,7 @@ func clusterHrefFromClusterServiceSubResource(fileContent []byte) (string, error
 
 func addFakeAzureIdentityData(clusterServiceCluster any) (*csarhcpv1alpha1.Cluster, error) {
 	// the API is so hard to work with that we'll make it a map[string]any to manipulate it
-	inJSON, err := marshalClusterServiceAny(clusterServiceCluster)
+	inJSON, err := datadumpcontrollers.MarshalClusterServiceAny(clusterServiceCluster)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal cluster-service type: %w", err)
 	}
@@ -448,7 +448,7 @@ func (s *ClusterServiceMock) saveClusterServiceMockData(ctx context.Context) err
 					return fmt.Errorf("failed to create directory %s: %w", dirname, err)
 				}
 
-				clusterServiceBytes, err := marshalClusterServiceAny(currCluster)
+				clusterServiceBytes, err := datadumpcontrollers.MarshalClusterServiceAny(currCluster)
 				if err != nil {
 					return fmt.Errorf("failed to marshal cluster: %w", err)
 				}
@@ -511,7 +511,7 @@ func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	// we need to merge the history together, but the CS types resist that, so taking it all back to maps is easier.
 	dest := map[string]any{}
 	for _, curr := range history {
-		clusterServiceJSON, err := marshalClusterServiceAny(curr)
+		clusterServiceJSON, err := datadumpcontrollers.MarshalClusterServiceAny(curr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal cluster-service type: %w", err)
 		}
@@ -602,49 +602,5 @@ func unmarshalClusterServiceAny[T any](mergedJSON []byte) (*T, error) {
 		return any(ret).(*T), err
 	default:
 		return nil, fmt.Errorf("unknown type: %T", &obj)
-	}
-}
-
-// cluster service types fight the standard golang stack and don't conform to standard json interfaces.
-func marshalClusterServiceAny(clusterServiceData any) ([]byte, error) {
-	switch castObj := clusterServiceData.(type) {
-	case *csarhcpv1alpha1.Cluster:
-		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalCluster(castObj, buf); err != nil {
-			return nil, err
-		}
-		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.ClusterAutoscaler:
-		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalClusterAutoscaler(castObj, buf); err != nil {
-			return nil, err
-		}
-		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.ExternalAuth:
-		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalExternalAuth(castObj, buf); err != nil {
-			return nil, err
-		}
-		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.NodePool:
-		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalNodePool(castObj, buf); err != nil {
-			return nil, err
-		}
-		return buf.Bytes(), nil
-	case *csarhcpv1alpha1.ProvisionShard:
-		buf := &bytes.Buffer{}
-		if err := csarhcpv1alpha1.MarshalProvisionShard(castObj, buf); err != nil {
-			return nil, err
-		}
-		return buf.Bytes(), nil
-	case *cmv1.HypershiftConfig:
-		buf := &bytes.Buffer{}
-		if err := cmv1.MarshalHypershiftConfig(castObj, buf); err != nil {
-			return nil, err
-		}
-		return buf.Bytes(), nil
-	default:
-		return nil, fmt.Errorf("unknown type: %T", castObj)
 	}
 }
