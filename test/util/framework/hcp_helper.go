@@ -851,7 +851,6 @@ func BuildNodePoolFromParams(
 				ChannelGroup: to.Ptr(parameters.ChannelGroup),
 			},
 			NodeDrainTimeoutMinutes: parameters.NodeDrainTimeoutMinutes,
-			Replicas:                to.Ptr(parameters.Replicas),
 			Platform: &hcpsdk20240610preview.NodePoolPlatformProfile{
 				VMSize: to.Ptr(parameters.VMSize),
 				OSDisk: &hcpsdk20240610preview.OsDiskProfile{
