@@ -65,3 +65,7 @@ update-digests-in-config: $(YAMLFMT)
 	$(YAMLFMT) ../config/config.yaml
 	../tooling/yamlwrap/yamlwrap unwrap --input ../config/config.yaml
 .PHONY: update-digests-in-config
+
+delete-rmo:
+	./delete-rmo.sh
+.PHONY: delete-rmo
