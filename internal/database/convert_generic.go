@@ -65,6 +65,13 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	if !ok {
 		return nil, fmt.Errorf("internalObj must be an arm.CosmosMetadataAccessor: %T", cosmosObj)
 	}
+	if ret.GetResourceID() == nil {
+		if cosmosObj.ResourceID != nil {
+			ret.(arm.CosmosPersistable).GetCosmosData().ResourceID = cosmosObj.ResourceID
+		} else {
+			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
+		}
+	}
 	ret.(arm.CosmosPersistable).GetCosmosData().ExistingCosmosUID = cosmosObj.ID
 	ret.SetEtag(cosmosObj.CosmosETag)
 
