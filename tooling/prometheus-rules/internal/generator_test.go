@@ -200,6 +200,53 @@ spec:
 			},
 		},
 		{
+			name: "invalid regex replace",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  regexOutputReplacements:
+  - from: '(badRegex'
+    to: 'replacement'
+`,
+			expectError: true,
+			errorMsg:    "invalid regex in regexOutputReplacements",
+		},
+		{
+			name: "valid regex",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  regexOutputReplacements:
+  - from: 'good(.+)t'
+    to: 'great$1t'
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: untested-rules
+spec:
+  groups:
+  - name: untested.rules
+    rules:
+    - alert: goodAlert
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.regexOutputReplacements, 1)
+				assert.Equal(t, "good(.+)t", opts.regexOutputReplacements[0].From.String())
+				assert.Equal(t, "great$1t", opts.regexOutputReplacements[0].To)
+			},
+		},
+		{
 			name:        "config file not found",
 			expectError: true,
 			errorMsg:    "error reading configuration file",
