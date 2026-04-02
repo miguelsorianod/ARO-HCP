@@ -688,9 +688,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "agentMode": {
-          "type": "boolean"
-        },
         "namespace": {
           "type": "string"
         },

@@ -68484,6 +68484,15 @@ spec:
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
   shards: 1
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+        storageClassName: managed-premium
   tolerations:
   - effect: NoSchedule
     key: infra

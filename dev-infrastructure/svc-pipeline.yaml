@@ -276,22 +276,6 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  - name: cleanup-prometheus-pvc
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./cleanup-prometheus-pvc.sh
-    workingDir: ./scripts
-    variables:
-    - name: AGENT_MODE
-      configRef: svc.prometheus.agentMode
-    dependsOn:
-    - resourceGroup: service
-      step: prometheus
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
   - name: istio-config
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm

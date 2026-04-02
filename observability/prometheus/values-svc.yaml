@@ -75,7 +75,6 @@ kube-prometheus-stack:
       sha: "{{ .svc.prometheus.kubeStateMetrics.image.digest }}"
 # this is our own config for the files in templates/
 prometheusSpec:
-  agentMode: {{ .svc.prometheus.agentMode }}
   image:
     registry: "{{ .svc.prometheus.prometheusSpec.image.registry }}"
     repository: "{{ .svc.prometheus.prometheusSpec.image.repository }}"
@@ -87,8 +86,6 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
-  retention: 1d
-  retentionSize: 45GiB
   resources:
     requests:
       cpu: {{ .svc.prometheus.prometheusSpec.resources.requests.cpu }}

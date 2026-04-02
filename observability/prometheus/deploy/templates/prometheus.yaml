@@ -1,13 +1,8 @@
 {{- $none := "NONE" -}}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
 {{- $setLimits := or (ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.limits.memory | toString) $none) -}}
-{{- if .Values.prometheusSpec.agentMode }}
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: PrometheusAgent
-{{- else }}
-apiVersion: monitoring.coreos.com/v1
-kind: Prometheus
-{{- end }}
 metadata:
   name: prometheus
   namespace: '{{ .Release.Namespace }}'
@@ -45,10 +40,6 @@ spec:
             values:
             - infra
   automountServiceAccountToken: true
-  {{- if not .Values.prometheusSpec.agentMode }}
-  enableAdminAPI: false
-  evaluationInterval: 30s
-  {{- end }}
   hostNetwork: false
   listenLocal: false
   logFormat: logfmt
@@ -65,15 +56,7 @@ spec:
     matchLabels:
       release: arohcp-monitor
   replicas: 1
-  {{- if not .Values.prometheusSpec.agentMode }}
-  retention: '{{ .Values.prometheusSpec.retention }}'
-  retentionSize: '{{ .Values.prometheusSpec.retentionSize }}'
-  {{- end }}
   routePrefix: /
-  {{- if not .Values.prometheusSpec.agentMode }}
-  ruleNamespaceSelector: {}
-  ruleSelector: {}
-  {{- end }}
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
     matchLabels:
@@ -90,7 +73,6 @@ spec:
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
   shards: 1
-  {{- if not .Values.prometheusSpec.agentMode }}
   storage:
     volumeClaimTemplate:
       spec:
@@ -100,7 +82,6 @@ spec:
           requests:
             storage: 50Gi
         storageClassName: managed-premium
-  {{- end }}
   tolerations:
   - effect: NoSchedule
     key: infra
@@ -119,10 +100,6 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
-  {{- if not .Values.prometheusSpec.agentMode }}
-  tsdb:
-    outOfOrderTimeWindow: 0s
-  {{- end }}
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'
