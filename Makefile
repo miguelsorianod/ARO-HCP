@@ -52,11 +52,11 @@ verify-deepcopy: deepcopy
 .PHONY: verify-deepcopy
 
 json-format: $(JQ_LINK)
-	hack/update-json-format.sh
+	hack/update-json-format.sh $(JQ_LINK)
 .PHONY: json-format
 
 verify-json-format: $(JQ_LINK)
-	hack/verify-json-format.sh
+	hack/verify-json-format.sh $(JQ_LINK)
 .PHONY: verify-json-format
 
 update: deepcopy json-format

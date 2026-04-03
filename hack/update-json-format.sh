@@ -20,8 +20,10 @@ set -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+JQ="${1:-jq}"
+
 JQ_SORT_KEYS='def sort_keys: if type == "object" then to_entries | sort_by(.key) | map(.value |= sort_keys) | from_entries elif type == "array" then map(sort_keys) else . end; sort_keys'
 
 while IFS= read -r -d '' f; do
-  jq --tab "${JQ_SORT_KEYS}" "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+  "${JQ}" --tab "${JQ_SORT_KEYS}" "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
 done < <(find "${REPO_ROOT}/test-integration" -name '*.json' -print0)

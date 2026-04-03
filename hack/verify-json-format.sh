@@ -20,6 +20,8 @@ set -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+JQ="${1:-jq}"
+
 JQ_SORT_KEYS='def sort_keys: if type == "object" then to_entries | sort_by(.key) | map(.value |= sort_keys) | from_entries elif type == "array" then map(sort_keys) else . end; sort_keys'
 
 TMPDIR=$(mktemp -d)
@@ -30,7 +32,7 @@ while IFS= read -r -d '' f; do
   relpath="${f#"${REPO_ROOT}"/}"
   tmpfile="${TMPDIR}/${relpath}"
   mkdir -p "$(dirname "${tmpfile}")"
-  jq --tab "${JQ_SORT_KEYS}" "$f" > "${tmpfile}"
+  "${JQ}" --tab "${JQ_SORT_KEYS}" "$f" > "${tmpfile}"
   if ! diff -q "$f" "${tmpfile}" > /dev/null 2>&1; then
     echo "ERROR: ${relpath} is not properly formatted"
     diff -u "$f" "${tmpfile}" || true
