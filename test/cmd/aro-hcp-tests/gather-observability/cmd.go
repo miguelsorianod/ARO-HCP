@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package customlinktools
+package gatherobservability
 
 import (
 	"context"
@@ -28,8 +28,8 @@ func NewCommand() (*cobra.Command, error) {
 
 	opts := DefaultOptions()
 	cmd := &cobra.Command{
-		Use:           "custom-link-tools",
-		Short:         "Generate HTML file that OCP's spyglass recognizes for display.",
+		Use:           "gather-observability",
+		Short:         "Gather Azure Monitor alerts fired during an e2e test run and produce HTML/JSON artifacts.",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -37,7 +37,7 @@ func NewCommand() (*cobra.Command, error) {
 			cmd.SetContext(ctx)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return Visualize(cmd.Context(), opts)
+			return GatherObservability(cmd.Context(), opts)
 		},
 	}
 	cmd.PersistentFlags().IntVarP(&logVerbosity, "verbosity", "v", 0, "set the verbosity level")
@@ -47,7 +47,7 @@ func NewCommand() (*cobra.Command, error) {
 	return cmd, nil
 }
 
-func Visualize(ctx context.Context, opts *RawOptions) error {
+func GatherObservability(ctx context.Context, opts *RawOptions) error {
 	validated, err := opts.Validate()
 	if err != nil {
 		return err

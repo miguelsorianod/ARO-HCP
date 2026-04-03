@@ -1,0 +1,35 @@
+queries:
+- title: "Backend Operation Error Rate"
+  query: |
+    (sum by (cluster) (rate(backend_failed_operations_total[1h])))
+    /
+    (sum by (cluster) (rate(backend_operations_total[1h])))
+    > 0
+  workspace: svc
+  step: "60s"
+- title: "Backend Controller Retry Ratio"
+  query: |
+    (
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
+        )
+      )
+      /
+      sum by (name, cluster) (
+        max without(prometheus_replica) (
+          rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
+        )
+      )
+    ) > 0
+  workspace: svc
+  step: "60s"
+- title: "Backend Controller Queue Depth"
+  query: |
+    max by (name, cluster) (
+      max without(prometheus_replica) (
+        workqueue_depth{namespace="aro-hcp"}
+      )
+    ) > 0
+  workspace: svc
+  step: "60s"

@@ -22,25 +22,19 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
-	"io"
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
 	"k8s.io/utils/clock"
 
-	"sigs.k8s.io/yaml"
-
-	configtypes "github.com/Azure/ARO-Tools/config/types"
-
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/internal/testutil"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
@@ -48,8 +42,6 @@ import (
 
 //go:embed artifacts/*.html.tmpl
 var templatesFS embed.FS
-
-var endGracePeriodDuration = 45 * time.Minute
 
 func mustReadArtifact(name string) []byte {
 	ret, err := templatesFS.ReadFile("artifacts/" + name)
@@ -111,6 +103,7 @@ type completedOptions struct {
 	Kusto             KustoInfo
 	StartTimeFallback *time.Time
 	SubscriptionID    string
+	Clock             clock.PassiveClock
 }
 
 type Options struct {
@@ -172,46 +165,29 @@ func resolveKustoRegion(kustoName string) (string, error) {
 	return "", fmt.Errorf("cannot resolve kusto region for %q", kustoName)
 }
 
-func configGetString(cfg configtypes.Configuration, path string) (string, error) {
-	val, err := cfg.GetByPath(path)
+func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
+	cfg, err := testutil.LoadRenderedConfig(o.RenderedConfig)
 	if err != nil {
-		return "", err
-	}
-	s, ok := val.(string)
-	if !ok {
-		return "", fmt.Errorf("config value at %q is %T, not string", path, val)
-	}
-	return s, nil
-}
-
-func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
-	// Load rendered config
-	rawCfg, err := os.ReadFile(o.RenderedConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read rendered config %s: %w", o.RenderedConfig, err)
-	}
-	var cfg configtypes.Configuration
-	if err := yaml.Unmarshal(rawCfg, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal rendered config: %w", err)
+		return nil, err
 	}
 
-	svcClusterName, err := configGetString(cfg, "svc.aks.name")
+	svcClusterName, err := testutil.ConfigGetString(cfg, "svc.aks.name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get svc cluster name from config: %w", err)
 	}
-	mgmtClusterName, err := configGetString(cfg, "mgmt.aks.name")
+	mgmtClusterName, err := testutil.ConfigGetString(cfg, "mgmt.aks.name")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mgmt cluster name from config: %w", err)
 	}
-	kustoName, err := configGetString(cfg, "kusto.kustoName")
+	kustoName, err := testutil.ConfigGetString(cfg, "kusto.kustoName")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kusto name from config: %w", err)
 	}
-	serviceLogsDB, err := configGetString(cfg, "kusto.serviceLogsDatabase")
+	serviceLogsDB, err := testutil.ConfigGetString(cfg, "kusto.serviceLogsDatabase")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service logs database from config: %w", err)
 	}
-	hcpLogsDB, err := configGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
+	hcpLogsDB, err := testutil.ConfigGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
 	}
@@ -221,35 +197,9 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		return nil, fmt.Errorf("failed to resolve kusto region: %w", err)
 	}
 
-	// Try loading steps.yaml (optional — used for start time derivation)
-	var steps []pipeline.NodeInfo
-	compressedPath := path.Join(o.TimingInputDir, "steps.yaml.gz")
-	uncompressedPath := path.Join(o.TimingInputDir, "steps.yaml")
-
-	compressedData, err := os.ReadFile(compressedPath)
-	if err == nil {
-		gzipReader, err := gzip.NewReader(bytes.NewReader(compressedData))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create gzip reader for %s: %w", compressedPath, err)
-		}
-		defer gzipReader.Close()
-
-		stepsYamlBytes, err := io.ReadAll(gzipReader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress %s: %w", compressedPath, err)
-		}
-		if err := yaml.Unmarshal(stepsYamlBytes, &steps); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal steps file: %w", err)
-		}
-	} else {
-		plainData, err := os.ReadFile(uncompressedPath)
-		if err != nil {
-			logger.Info("steps.yaml not found, service log links will use fallback start time", "compressed", compressedPath, "uncompressed", uncompressedPath)
-		} else {
-			if err := yaml.Unmarshal(plainData, &steps); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal steps file: %w", err)
-			}
-		}
+	steps, err := timing.LoadSteps(ctx, o.TimingInputDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load steps: %w", err)
 	}
 
 	var startTimeFallback *time.Time
@@ -271,6 +221,7 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 			MgmtClusterName:   mgmtClusterName,
 			StartTimeFallback: startTimeFallback,
 			SubscriptionID:    o.SubscriptionID,
+			Clock:             clock.RealClock{},
 			Kusto: KustoInfo{
 				KustoName:                      kustoName,
 				KustoRegion:                    kustoRegion,
@@ -292,12 +243,6 @@ type TestRow struct {
 type LinkDetails struct {
 	DisplayName string
 	URL         string
-}
-
-type TimingInfo struct {
-	StartTime          time.Time
-	EndTime            time.Time
-	ResourceGroupNames []string
 }
 
 type QueryTemplate struct {
@@ -351,21 +296,21 @@ func encodeKustoQuery(query string) string {
 func (o Options) Run(ctx context.Context) error {
 	allTestRows := []TestRow{}
 
-	timingInfo, err := loadAllTestTimingInfo(o.TimingInputDir)
+	timingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	for testName, timing := range timingInfo {
-		for _, rg := range timing.ResourceGroupNames {
+	for testName, ti := range timingInfo {
+		for _, rg := range ti.ResourceGroupNames {
 			testFactory, err := kusto.NewQueryFactory()
 			if err != nil {
 				return utils.TrackError(fmt.Errorf("failed to create query factory: %w", err))
 			}
 			queryOpts := kusto.QueryOptions{
 				ResourceGroupName: rg,
-				TimestampMin:      timing.StartTime,
-				TimestampMax:      timing.EndTime,
+				TimestampMin:      ti.StartTime,
+				TimestampMax:      ti.EndTime,
 				Limit:             -1,
 			}
 			templateData := kusto.NewTemplateDataFromOptions(queryOpts)
@@ -426,13 +371,12 @@ func (o Options) Run(ctx context.Context) error {
 		return utils.TrackError(err)
 	}
 
-	logger, _ := logr.FromContext(ctx)
-	tw, err := computeTimeWindow(logger, o.Steps, timingInfo, o.StartTimeFallback)
+	tw, err := timing.ComputeTimeWindow(ctx, o.Clock, o.Steps, timingInfo, o.StartTimeFallback)
 	if err != nil {
-		return utils.TrackError(err)
+		return utils.TrackError(fmt.Errorf("failed to compute time window: %w", err))
 	}
 
-	serviceLogLinks, err := getServiceLogLinks(logger, tw, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
+	serviceLogLinks, err := getServiceLogLinks(tw, o.SvcClusterName, o.MgmtClusterName, o.Kusto)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -487,176 +431,12 @@ func renderTemplate(queryTemplate QueryTemplate, templateData interface{}) error
 	return os.WriteFile(path.Join(queryTemplate.OutputFileName), outBytes.Bytes(), 0644)
 }
 
-// loadTestTimingMetadata loads test timing metadata from the timing input directory.
-// It returns a map of test identifier to timing information.
-func loadAllTestTimingInfo(timingInputDir string) (map[string]TimingInfo, error) {
-	var allTimingFiles []string
-	err := filepath.Walk(timingInputDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			fileName := filepath.Base(path)
-			if (strings.HasSuffix(fileName, ".yaml") || strings.HasSuffix(fileName, ".yaml.gz")) && strings.HasPrefix(fileName, "timing-metadata-") {
-				allTimingFiles = append(allTimingFiles, path)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var allTimingInfo = make(map[string]TimingInfo)
-
-	for _, timingFile := range allTimingFiles {
-		fileData, err := os.ReadFile(timingFile)
-		if err != nil {
-			return nil, err
-		}
-
-		var timingFileBytes []byte
-		// Check if file is gzipped
-		if strings.HasSuffix(timingFile, ".gz") {
-			gzipReader, err := gzip.NewReader(bytes.NewReader(fileData))
-			if err != nil {
-				return nil, fmt.Errorf("failed to create gzip reader for %s: %w", timingFile, err)
-			}
-			defer gzipReader.Close()
-
-			timingFileBytes, err = io.ReadAll(gzipReader)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decompress %s: %w", timingFile, err)
-			}
-		} else {
-			timingFileBytes = fileData
-		}
-
-		var timing timing.SpecTimingMetadata
-		err = yaml.Unmarshal(timingFileBytes, &timing)
-		if err != nil {
-			return nil, err
-		}
-		deployment := strings.Join(timing.Identifier, " ")
-
-		var rgNames = make(map[string]bool)
-		for resourceGroup := range timing.Deployments {
-			rgNames[resourceGroup] = true
-		}
-
-		rgNameList := make([]string, 0)
-		for rgName := range rgNames {
-			if rgName == "" {
-				continue
-			}
-			rgNameList = append(rgNameList, rgName)
-		}
-		finishedAt, err := time.Parse(time.RFC3339, timing.FinishedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse finished at: %w", err)
-		}
-		startedAt, err := time.Parse(time.RFC3339, timing.StartedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse started at: %w", err)
-		}
-
-		allTimingInfo[deployment] = TimingInfo{
-			StartTime:          startedAt,
-			EndTime:            finishedAt.Add(endGracePeriodDuration),
-			ResourceGroupNames: rgNameList,
-		}
-	}
-
-	return allTimingInfo, nil
-}
-
-var localClock clock.PassiveClock = clock.RealClock{}
-
-type TimeWindow struct {
-	Start time.Time
-	End   time.Time
-}
-
-func computeTimeWindow(logger logr.Logger, steps []pipeline.NodeInfo, testTimingInfo map[string]TimingInfo, startTimeFallback *time.Time) (TimeWindow, error) {
-	// Determine earliest start time from steps
-	earliestStartTime := time.Time{}
-	startSource := ""
-	for _, step := range steps {
-		if len(step.Info.StartedAt) > 0 {
-			startTime, err := time.Parse(time.RFC3339, step.Info.StartedAt)
-			if err != nil {
-				return TimeWindow{}, fmt.Errorf("failed to parse started at: %w", err)
-			}
-			if earliestStartTime.IsZero() || startTime.Before(earliestStartTime) {
-				earliestStartTime = startTime
-				startSource = "steps"
-			}
-		}
-	}
-	// Fallback: earliest test start time
-	if earliestStartTime.IsZero() {
-		for _, ti := range testTimingInfo {
-			if earliestStartTime.IsZero() || ti.StartTime.Before(earliestStartTime) {
-				earliestStartTime = ti.StartTime
-				startSource = "test timing"
-			}
-		}
-	}
-	// Fallback: CLI-provided start time
-	if earliestStartTime.IsZero() && startTimeFallback != nil {
-		earliestStartTime = *startTimeFallback
-		startSource = "CLI fallback"
-	}
-	// Final fallback: now - 3h
-	if earliestStartTime.IsZero() {
-		earliestStartTime = localClock.Now().Add(-3 * time.Hour)
-		startSource = "clock (now-3h)"
-	}
-
-	// Determine end time from latest step FinishedAt + grace period
-	endTime := time.Time{}
-	endSource := ""
-	for _, step := range steps {
-		if len(step.Info.FinishedAt) > 0 {
-			finishedTime, err := time.Parse(time.RFC3339, step.Info.FinishedAt)
-			if err != nil {
-				return TimeWindow{}, fmt.Errorf("failed to parse finished at: %w", err)
-			}
-			finishedWithGrace := finishedTime.Add(endGracePeriodDuration)
-			if endTime.IsZero() || finishedWithGrace.After(endTime) {
-				endTime = finishedWithGrace
-				endSource = "steps (+45m grace)"
-			}
-		}
-	}
-	// Fallback: latest test end time (already includes grace period)
-	if endTime.IsZero() {
-		for _, ti := range testTimingInfo {
-			if endTime.IsZero() || ti.EndTime.After(endTime) {
-				endTime = ti.EndTime
-				endSource = "test timing"
-			}
-		}
-	}
-	// Final fallback: now + 30min
-	if endTime.IsZero() {
-		endTime = localClock.Now().Add(30 * time.Minute)
-		endSource = "clock (now+30m)"
-	}
-
-	logger.Info("service log query time window",
-		"start", earliestStartTime.Format(time.RFC3339), "startSource", startSource,
-		"end", endTime.Format(time.RFC3339), "endSource", endSource)
-
-	return TimeWindow{Start: earliestStartTime, End: endTime}, nil
-}
-
 type CommandInfo struct {
 	Label   string
 	Command string
 }
 
-func getMustGatherCommands(tw TimeWindow, svcClusterName, mgmtClusterName, subscriptionID string, kusto KustoInfo) []CommandInfo {
+func getMustGatherCommands(tw timing.TimeWindow, svcClusterName, mgmtClusterName, subscriptionID string, kusto KustoInfo) []CommandInfo {
 	startStr := tw.Start.Format(time.DateTime)
 	endStr := tw.End.Format(time.DateTime)
 
@@ -678,7 +458,7 @@ type TestCommandRow struct {
 	NoRG     bool
 }
 
-func getPerTestMustGatherCommands(timingInfo map[string]TimingInfo, subscriptionID string, kusto KustoInfo) []TestCommandRow {
+func getPerTestMustGatherCommands(timingInfo map[string]timing.TimingInfo, subscriptionID string, kusto KustoInfo) []TestCommandRow {
 	rows := make([]TestCommandRow, 0, len(timingInfo))
 	for testName, ti := range timingInfo {
 		if len(ti.ResourceGroupNames) == 0 {
@@ -701,7 +481,7 @@ func getPerTestMustGatherCommands(timingInfo map[string]TimingInfo, subscription
 	return rows
 }
 
-func getServiceLogLinks(logger logr.Logger, tw TimeWindow, svcClusterName, mgmtClusterName string, kustoInfo KustoInfo) ([]LinkDetails, error) {
+func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName string, kustoInfo KustoInfo) ([]LinkDetails, error) {
 	allLinks := []LinkDetails{}
 
 	factory, err := kusto.NewQueryFactory()
