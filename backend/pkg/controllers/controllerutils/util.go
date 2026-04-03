@@ -29,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -146,6 +147,21 @@ func (k *HCPNodePoolKey) InitialController(controllerName string) *api.Controlle
 			Conditions: []api.Condition{},
 		},
 	}
+}
+
+// SubscriptionKey is for driving workqueues keyed for subscriptions
+type SubscriptionKey struct {
+	SubscriptionID string `json:"subscriptionID"`
+}
+
+func (k *SubscriptionKey) GetResourceID() *azcorearm.ResourceID {
+	return api.Must(arm.ToSubscriptionResourceID(k.SubscriptionID))
+}
+
+func (k *SubscriptionKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(
+		utils.LogValues{}.
+			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
 // clock is used by helper functions for setting last transition time.  It is injectable for unit testing.

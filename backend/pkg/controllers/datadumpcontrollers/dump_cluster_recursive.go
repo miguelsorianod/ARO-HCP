@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type dataDump struct {
+type clusterRecursiveDataDump struct {
 	cooldownChecker controllerutils.CooldownChecker
 	cosmosClient    database.DBClient
 
@@ -34,13 +34,13 @@ type dataDump struct {
 	nextDataDumpChecker controllerutils.CooldownChecker
 }
 
-// NewDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
-func NewDataDumpController(
+// NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
+func NewClusterRecursiveDataDumpController(
 	cosmosClient database.DBClient,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
-	syncer := &dataDump{
+	syncer := &clusterRecursiveDataDump{
 		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		cosmosClient:        cosmosClient,
 		nextDataDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -55,7 +55,7 @@ func NewDataDumpController(
 	)
 }
 
-func (c *dataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	if !c.nextDataDumpChecker.CanSync(ctx, key) {
 		return nil
 	}
@@ -70,6 +70,6 @@ func (c *dataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterK
 	return nil
 }
 
-func (c *dataDump) CooldownChecker() controllerutils.CooldownChecker {
+func (c *clusterRecursiveDataDump) CooldownChecker() controllerutils.CooldownChecker {
 	return c.cooldownChecker
 }

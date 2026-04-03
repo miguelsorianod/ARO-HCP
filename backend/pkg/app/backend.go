@@ -262,7 +262,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	maestroClientBuilder := maestro.NewMaestroClientBuilder()
 
-	dataDumpController := datadumpcontrollers.NewDataDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
+	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
+	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers)
 	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.CosmosDBClient, activeOperationLister, backendInformers, b.options.ClustersServiceClient)
 	doNothingController := controllers.NewDoNothingExampleController(b.options.CosmosDBClient, subscriptionLister)
 	operationClusterCreateController := operationcontrollers.NewGenericOperationController(
@@ -504,7 +505,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				// start the SharedInformers
 				go backendInformers.RunWithContext(ctx)
 
-				go dataDumpController.Run(ctx, 20)
+				go subscriptionNonClusterDataDumpController.Run(ctx, 20)
+				go clusterRecursiveDataDumpController.Run(ctx, 20)
 				go csStateDumpController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
