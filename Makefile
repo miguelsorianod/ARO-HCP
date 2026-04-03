@@ -51,7 +51,18 @@ verify-deepcopy: deepcopy
 	./hack/verify.sh deepcopy
 .PHONY: verify-deepcopy
 
-verify: verify-deepcopy
+json-format: $(JQ_LINK)
+	hack/update-json-format.sh
+.PHONY: json-format
+
+verify-json-format: $(JQ_LINK)
+	hack/verify-json-format.sh
+.PHONY: verify-json-format
+
+update: deepcopy json-format
+.PHONY: update
+
+verify: verify-deepcopy verify-json-format
 .PHONY: verify
 
 verify-yamlfmt: yamlfmt
