@@ -45,8 +45,8 @@
 			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/illegal-change"
 		},
 		"version": {
-			"id": "illegal-change",
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "illegal-change"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

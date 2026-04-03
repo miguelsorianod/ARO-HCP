@@ -2,12 +2,6 @@
 	"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-01/nodePools/basic-np",
 	"location": "fake-location",
 	"name": "basic-np",
-	"systemData": {
-		"createdBy": "Unknown-ARO-HCP-frontend",
-		"createdByType": "Application",
-		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-		"lastModifiedByType": "Application"
-	},
 	"properties": {
 		"autoRepair": true,
 		"autoScaling": {
@@ -28,6 +22,12 @@
 		"version": {
 			"channelGroup": "stable"
 		}
+	},
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 }

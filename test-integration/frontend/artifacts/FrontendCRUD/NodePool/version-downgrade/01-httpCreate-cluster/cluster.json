@@ -40,17 +40,17 @@
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/some-resource-group/providers/Microsoft.Network/networkSecurityGroups/nsg",
-			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
 			"operatorsAuthentication": {
 				"userAssignedIdentities": {
 					"serviceManagedIdentity": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service-managed-identity"
 				}
-			}
+			},
+			"outboundType": "LoadBalancer",
+			"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 		},
 		"version": {
-			"id": "4.20",
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.20"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"

@@ -1,8 +1,4 @@
 {
-	"tags": {
-		"aro-hcp.experimental.cluster.single-replica": "SingleReplica",
-		"aro-hcp.experimental.cluster.size-override": "Minimal"
-	},
 	"identity": {
 		"type": "UserAssigned",
 		"userAssignedIdentities": {}
@@ -49,6 +45,10 @@
 			"channelGroup": "stable",
 			"id": "4.20"
 		}
+	},
+	"tags": {
+		"aro-hcp.experimental.cluster.single-replica": "SingleReplica",
+		"aro-hcp.experimental.cluster.size-override": "Minimal"
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

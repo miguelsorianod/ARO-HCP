@@ -8,6 +8,9 @@
 		"api": {
 			"visibility": "Public"
 		},
+		"autoscaling": {
+			"maxPodGracePeriodSeconds": -1
+		},
 		"clusterImageRegistry": {
 			"state": "Disabled"
 		},
@@ -35,14 +38,9 @@
 			"podCidr": "10.128.0.0/14",
 			"serviceCidr": "172.30.0.0/16"
 		},
-		"autoscaling": {
-			"maxPodGracePeriodSeconds": -1
-		},
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",
 			"networkSecurityGroupId": "/invalid2",
-			"outboundType": "LoadBalancer",
-			"subnetId": "/invalid1",
 			"operatorsAuthentication": {
 				"userAssignedIdentities": {
 					"controlPlaneOperators": {
@@ -55,7 +53,9 @@
 					},
 					"serviceManagedIdentity": "/invalid7"
 				}
-			}
+			},
+			"outboundType": "LoadBalancer",
+			"subnetId": "/invalid1"
 		},
 		"version": {
 			"channelGroup": "stable",

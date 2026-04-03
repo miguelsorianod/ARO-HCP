@@ -50,15 +50,15 @@
 			"channelGroup": "stable"
 		}
 	},
-	"tags": {
-		"one": "apple",
-		"two": "banana"
-	},
-	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 	"systemData": {
 		"createdBy": "Unknown-ARO-HCP-frontend",
 		"createdByType": "Application",
 		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
 		"lastModifiedByType": "Application"
-	}
+	},
+	"tags": {
+		"one": "apple",
+		"two": "banana"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

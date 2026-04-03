@@ -5,12 +5,6 @@
 	},
 	"location": "fake-location",
 	"name": "vc-cluster-03",
-	"systemData": {
-		"createdBy": "Unknown-ARO-HCP-frontend",
-		"createdByType": "Application",
-		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-		"lastModifiedByType": "Application"
-	},
 	"properties": {
 		"api": {
 			"visibility": "Public"
@@ -46,6 +40,12 @@
 			"channelGroup": "stable",
 			"id": "4.20"
 		}
+	},
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

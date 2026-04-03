@@ -1,7 +1,7 @@
 {
-	"state": "Registered",
-	"registrationDate": "2024-01-01T00:00:00Z",
 	"properties": {
 		"tenantId": "the-tenant"
-	}
+	},
+	"registrationDate": "2024-01-01T00:00:00Z",
+	"state": "Registered"
 }

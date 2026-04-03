@@ -5,12 +5,6 @@
 	},
 	"location": "fake-location",
 	"name": "vc-cluster-03",
-	"systemData": {
-		"createdBy": "Unknown-ARO-HCP-frontend",
-		"createdByType": "Application",
-		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-		"lastModifiedByType": "Application"
-	},
 	"properties": {
 		"api": {
 			"visibility": "Public"
@@ -28,7 +22,6 @@
 				"keyManagementMode": "PlatformManaged"
 			}
 		},
-		"nodeDrainTimeoutMinutes": 0,
 		"network": {
 			"hostPrefix": 23,
 			"machineCidr": "10.0.0.0/16",
@@ -36,6 +29,7 @@
 			"podCidr": "10.128.0.0/14",
 			"serviceCidr": "172.30.0.0/16"
 		},
+		"nodeDrainTimeoutMinutes": 0,
 		"platform": {
 			"managedResourceGroup": "managed-rg-vc-03",
 			"networkSecurityGroupId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
@@ -47,6 +41,12 @@
 			"channelGroup": "stable",
 			"id": "4.20"
 		}
+	},
+	"systemData": {
+		"createdBy": "Unknown-ARO-HCP-frontend",
+		"createdByType": "Application",
+		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
+		"lastModifiedByType": "Application"
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

@@ -1,8 +1,6 @@
 {
 	"id": "|subscriptions|6b690bec-0c16-4ecb-8f67-781caf40bba7|resourcegroups|resourcegroupname|providers|microsoft.redhatopenshift|hcpopenshiftclusters|basic|nodepools|inv-ver-update|serviceprovidernodepools|default",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools",
-	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/inv-ver-update/serviceProviderNodePools/default",
 	"properties": {
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/inv-ver-update/serviceProviderNodePools/default",
 		"spec": {
@@ -13,9 +11,13 @@
 		"status": {
 			"nodePoolVersion": {
 				"activeVersions": [
-					{"version": "4.20.8"}
+					{
+						"version": "4.20.8"
+					}
 				]
 			}
 		}
-	}
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/basic/nodePools/inv-ver-update/serviceProviderNodePools/default",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools"
 }
