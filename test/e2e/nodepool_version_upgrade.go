@@ -28,6 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -43,7 +44,7 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	DescribeTable("should upgrade a nodepool",
+	DescribeTable("should upgrade and update a nodepool",
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			targetMinorVersion := api.Must(semver.ParseTolerant(targetMinor))
@@ -189,10 +190,12 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before upgrade")
 
-			By(fmt.Sprintf("triggering nodepool upgrade to version %s", nodePoolDesiredVersion))
+			By(fmt.Sprintf("triggering nodepool upgrade to version %s and update replicas to 3", nodePoolDesiredVersion))
+			updateReplicas := 3
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			update := hcpsdk20240610preview.NodePoolUpdate{
 				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Replicas: ptr.To(int32(updateReplicas)),
 					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
 						ID:           to.Ptr(nodePoolDesiredVersion),
 						ChannelGroup: to.Ptr(channelGroup),
@@ -219,6 +222,10 @@ var _ = Describe("Customer", func() {
 			Expect(npGetResponse.Properties.Version).NotTo(BeNil())
 			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil())
 			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDesiredVersion))
+
+			By("verifying number of nodes ready and not draining meet the expected replicas")
+			Expect(verifiers.VerifyNodePoolReadyAndSchedulableNodeCount(customerNodePoolName, updateReplicas).Verify(ctx, adminRESTConfig)).To(Succeed())
+
 		},
 		Entry("from 4.20.z to 4.21.zLatest",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,

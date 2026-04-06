@@ -104,6 +104,56 @@ func VerifyNodeCount(expected int) HostedClusterVerifier {
 	}
 }
 
+type verifyNodePoolReadyAndSchedulableNodeCount struct {
+	nodePoolName string
+	expected     int
+}
+
+func (v verifyNodePoolReadyAndSchedulableNodeCount) Name() string {
+	return fmt.Sprintf("VerifyNodePoolReadyAndSchedulableNodeCount(nodePool=%s, expected=%d)", v.nodePoolName, v.expected)
+}
+
+func (v verifyNodePoolReadyAndSchedulableNodeCount) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("can't list nodes in the cluster: %w", err)
+	}
+
+	matchingNodes, err := framework.SelectNodesBelongingToNodePool(nodes.Items, v.nodePoolName)
+	if err != nil {
+		return fmt.Errorf("failed to select nodes for node pool %q: %w", v.nodePoolName, err)
+	}
+
+	readyCount := 0
+	for i := range matchingNodes {
+		if nodeReadyAndSchedulable(&matchingNodes[i]) {
+			readyCount++
+		}
+	}
+
+	if readyCount != v.expected {
+		return fmt.Errorf("expected %d ready (and schedulable) nodes in node pool %q, found %d", v.expected, v.nodePoolName, readyCount)
+	}
+
+	return nil
+}
+
+// VerifyNodePoolReadyAndSchedulableNodeCount verifies that the specified node pool has exactly
+// the expected number of ready and schedulable nodes. This excludes cordoned nodes
+// (Unschedulable=true), which is useful during rolling upgrades when old nodes are
+// being replaced and the total node count may temporarily exceed the target replica count.
+func VerifyNodePoolReadyAndSchedulableNodeCount(nodePoolName string, expected int) HostedClusterVerifier {
+	return verifyNodePoolReadyAndSchedulableNodeCount{
+		nodePoolName: nodePoolName,
+		expected:     expected,
+	}
+}
+
 type verifyNodePoolUpgrade struct {
 	expectedVersion       string
 	nodePoolName          string
@@ -210,6 +260,13 @@ func nodeReady(node *corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+// nodeReadyAndSchedulable returns true if the node is ready and schedulable.
+// Excludes cordoned nodes (Unschedulable=true), which occurs during rolling
+// upgrades when old nodes are being replaced.
+func nodeReadyAndSchedulable(node *corev1.Node) bool {
+	return nodeReady(node) && !node.Spec.Unschedulable
 }
 
 // nodeVersionInMinor returns a non-empty reason if the node's version is not in the same major.minor as expectedSemver.
