@@ -21,6 +21,7 @@ import (
 	// If using ginkgo, import your tests here
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
+	"github.com/onsi/gomega/format"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
@@ -45,6 +46,11 @@ func slowTestsOnly(query string) string {
 }
 
 func setupCli() *cobra.Command {
+	// Configure Ginkgo to be verbose - when we're emitting a full object to stdout on failure, there's no real value in truncating its
+	// content at some arbitrary length.
+	format.MaxLength = 0
+	format.MaxDepth = 0
+
 	// Extension registry
 	registry := e.NewRegistry()
 
