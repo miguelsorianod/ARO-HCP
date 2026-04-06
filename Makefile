@@ -51,12 +51,12 @@ verify-deepcopy: deepcopy
 	./hack/verify.sh deepcopy
 .PHONY: verify-deepcopy
 
-json-format: $(JQ_LINK)
-	hack/update-json-format.sh $(JQ_LINK)
+json-format: $(	JQ)
+	hack/update-json-format.sh $(JQ)
 .PHONY: json-format
 
-verify-json-format: $(JQ_LINK)
-	hack/verify-json-format.sh $(JQ_LINK)
+verify-json-format: $(JQ)
+	hack/verify-json-format.sh $(JQ)
 .PHONY: verify-json-format
 
 update: deepcopy json-format
@@ -74,7 +74,7 @@ mocks: $(MOCKGEN) $(GOIMPORTS)
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP $$(find . -name "mock_*.go" -not -path "./.git/*" -not -path "./.bingo/*")
 .PHONY: mocks
 
-install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ_LINK) $(ORAS_LINK)
+install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ) $(ORAS_LINK)
 	$(BINGO) get
 .PHONY: install-tools
 
