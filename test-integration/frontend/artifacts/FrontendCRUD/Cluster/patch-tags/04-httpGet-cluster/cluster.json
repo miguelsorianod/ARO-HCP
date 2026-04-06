@@ -58,18 +58,18 @@
 		},
 		"provisioningState": "Accepted",
 		"version": {
-			"id": "4.20",
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.20"
 		}
 	},
-	"tags": {
-		"apple": "adam"
-	},
-	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 	"systemData": {
 		"createdBy": "Unknown-ARO-HCP-frontend",
 		"createdByType": "Application",
 		"lastModifiedBy": "Unknown-ARO-HCP-frontend",
 		"lastModifiedByType": "Application"
-	}
+	},
+	"tags": {
+		"apple": "adam"
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

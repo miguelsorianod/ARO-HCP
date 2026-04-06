@@ -8,6 +8,9 @@
 		"api": {
 			"visibility": "Public"
 		},
+		"autoscaling": {
+			"maxNodeProvisionTimeSeconds": -1
+		},
 		"clusterImageRegistry": {
 			"state": "Disabled"
 		},
@@ -34,9 +37,6 @@
 			"networkType": "OVNKubernetes",
 			"podCidr": "10.128.0.0/14",
 			"serviceCidr": "172.30.0.0/16"
-		},
-		"autoscaling": {
-			"maxNodeProvisionTimeSeconds": -1
 		},
 		"platform": {
 			"managedResourceGroup": "managed-resource-group-name",

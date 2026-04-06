@@ -22,8 +22,8 @@ $(YQ_LINK): $(YQ)
 	@rm -f $(YQ_LINK)
 	@ln -s $(YQ) $(YQ_LINK)
 	
-JQ_LINK := $(GOBIN)/jq
-$(JQ_LINK): $(GOJQ)
-	@echo "creating symlink for $(GOJQ) at $(JQ_LINK)"
-	@rm -f $(JQ_LINK)
-	@ln -s $(GOJQ) $(JQ_LINK)
+JQ := $(GOBIN)/jq
+$(JQ): $(GOJQ)
+	@echo "creating symlink for $(GOJQ) at $(JQ)"
+	@rm -f $(JQ)
+	@ln -s $(GOJQ) $(JQ)

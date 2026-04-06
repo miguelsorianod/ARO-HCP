@@ -3,8 +3,8 @@
 	"properties": {
 		"autoRepair": true,
 		"autoScaling": {
-			"min": 1,
-			"max": 5
+			"max": 5,
+			"min": 1
 		},
 		"labels": [
 			{
@@ -24,8 +24,8 @@
 			}
 		],
 		"version": {
-			"id": "4.22.5",
-			"channelGroup": "stable"
+			"channelGroup": "stable",
+			"id": "4.22.5"
 		}
 	},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"

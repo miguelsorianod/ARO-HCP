@@ -3,8 +3,8 @@
 	"properties": {
 		"autoRepair": true,
 		"autoScaling": {
-			"min": 1,
-			"max": 5
+			"max": 5,
+			"min": 1
 		},
 		"labels": [
 			{
@@ -14,11 +14,11 @@
 		],
 		"nodeDrainTimeoutMinutes": 2,
 		"platform": {
-			"vmSize": "large",
-			"subnetId": "/invalid1",
 			"osDisk": {
 				"encryptionSetId": "/invalid2"
-			}
+			},
+			"subnetId": "/invalid1",
+			"vmSize": "large"
 		},
 		"taints": [
 			{

@@ -1,5 +1,4 @@
 {
-	"tags": {},
 	"identity": {
 		"type": "UserAssigned",
 		"userAssignedIdentities": {}
@@ -47,5 +46,6 @@
 			"id": "4.19"
 		}
 	},
+	"tags": {},
 	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }

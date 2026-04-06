@@ -78,6 +78,6 @@
 			"lastModifiedByType": "Application"
 		}
 	},
-	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
-	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"
+	"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }
