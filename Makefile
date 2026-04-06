@@ -62,7 +62,7 @@ verify-json-format: $(JQ)
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt
 .PHONY: verify
 
 verify-yamlfmt: yamlfmt
