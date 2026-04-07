@@ -15,10 +15,16 @@
 package utils
 
 import (
+	"context"
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"k8s.io/component-base/metrics/legacyregistry"
 )
 
 const TracerName = "github.com/Azure/ARO-HCP/frontend"
@@ -28,4 +34,31 @@ func DefaultLogger() logr.Logger {
 		AddSource: true,
 	})
 	return logr.FromSlogHandler(handler)
+}
+
+var (
+	// PanicTotal counts the total number of panics caught byt this handler.
+	// If available, it labels by controller.  If not available, they go into "" bucket.
+	// This could be expanded later for a resource type for the frontend if necessay, but something
+	// counting crashes is better than nothing.
+	PanicTotal = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "panic_total",
+			Help: "Total number of panics per controller.",
+		},
+		[]string{"controller"},
+	)
+)
+
+func IncrementPanicMetrics(ctx context.Context, r interface{}) {
+	if r == http.ErrAbortHandler {
+		// honor the http.ErrAbortHandler sentinel panic value:
+		//   ErrAbortHandler is a sentinel panic value to abort a handler.
+		//   While any panic from ServeHTTP aborts the response to the client,
+		//   panicking with ErrAbortHandler also suppresses logging of a stack trace to the server's error log.
+		return
+	}
+
+	controllerName, _ := ControllerNameFromContext(ctx)
+	PanicTotal.WithLabelValues(controllerName).Inc()
 }

@@ -19,11 +19,15 @@ import (
 	"log"
 	"os"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/ARO-HCP/frontend/cmd"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func main() {
+	utilruntime.PanicHandlers = append(utilruntime.PanicHandlers, utils.IncrementPanicMetrics)
 	if err := cmd.NewRootCmd().Execute(); err != nil {
 		log.Println(fmt.Errorf("%s error: %v", frontend.ProgramName, err))
 		os.Exit(1)

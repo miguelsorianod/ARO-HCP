@@ -119,6 +119,7 @@ func (c *genericOperation) Run(ctx context.Context, threadiness int) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
+	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
@@ -169,6 +170,7 @@ func (c *genericOperation) enqueueAdd(newObj interface{}) {
 	logger := utils.DefaultLogger()
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx := logr.NewContext(context.TODO(), logger)
+	ctx = utils.ContextWithControllerName(ctx, c.name)
 
 	castObj := newObj.(*api.Operation)
 	if castObj.ExternalID == nil {

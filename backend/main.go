@@ -17,10 +17,15 @@ package main
 import (
 	"os"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/ARO-HCP/backend/cmd"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func main() {
+	utilruntime.PanicHandlers = append(utilruntime.PanicHandlers, utils.IncrementPanicMetrics)
+
 	cmdRoot := cmd.NewCmdRoot()
 	if err := cmdRoot.Execute(); err != nil {
 		cmdRoot.PrintErrln(cmdRoot.ErrPrefix(), err.Error())
