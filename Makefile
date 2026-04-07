@@ -336,8 +336,7 @@ test-helm-fixtures:
 .PHONY: test-helmcharts
 
 verify-materialize:
-	$(MAKE) -C config/ materialize
-	./hack/verify.sh materialize
+	$(MAKE) -C config/ detect-change
 .PHONY: verify-materialize
 
 #
