@@ -324,6 +324,16 @@ var _ = Describe("Customer", func() {
 			_, err = adminClient.CoreV1().ServiceAccounts(testNamespace).Create(ctx, sa, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
+			By("waiting for namespace UID range annotation to be set by the cluster-policy-controller")
+			Eventually(func() bool {
+				updatedNS, err := adminClient.CoreV1().Namespaces().Get(ctx, testNamespace, metav1.GetOptions{})
+				if err != nil {
+					return false
+				}
+				_, ok := updatedNS.Annotations["openshift.io/sa.scc.uid-range"]
+				return ok
+			}, 5*time.Minute, 5*time.Second).Should(BeTrue(), "namespace %s was never annotated with openshift.io/sa.scc.uid-range", testNamespace)
+
 			By("creating a pod that authenticates to Azure using federated workload identity credentials")
 			// Dev and INT environments have the workload identity webhook deployed.
 			// Higher environments (stg, prod) may not have it yet, so we manually
