@@ -461,7 +461,7 @@ resource maintenanceWindows 'Microsoft.ContainerService/managedClusters/maintena
     properties: {
       maintenanceWindow: {
         durationHours: 10
-        startTime: '02:00'
+        startTime: '01:00'
         notAllowedDates: [
           {
             start: '2025-11-16'
