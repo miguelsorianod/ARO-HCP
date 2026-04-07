@@ -258,22 +258,35 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
 	}()
 
+	ginkgo.GinkgoLogr.Info("Starting identity container acquisition", "count", count, "specID", specID())
+
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
 	if err != nil {
 		return fmt.Errorf("failed to open managed identities pool state file: %w", err)
 	}
 
+	attempt := 0
 	for {
+		attempt++
 		err := state.assignNTo(specID(), count)
 		if err == nil {
+			ginkgo.GinkgoLogr.Info("Successfully assigned identity containers",
+				"count", count, "attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
 			return nil
 		}
 		if !errors.Is(err, ErrNotEnoughFreeIdentityContainers) {
+			ginkgo.GinkgoLogr.Info("Identity container assignment failed with unexpected error",
+				"error", err, "attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
 			return err
 		}
 
+		ginkgo.GinkgoLogr.Info("Not enough free identity containers, waiting to retry",
+			"error", err, "attempt", attempt, "retryIn", waitBetweenRetries, "elapsed", time.Since(startTime).Round(time.Second))
+
 		select {
 		case <-ctx.Done():
+			ginkgo.GinkgoLogr.Info("Context cancelled while waiting for identity containers",
+				"attempt", attempt, "elapsed", time.Since(startTime).Round(time.Second))
 			return ctx.Err()
 		case <-time.After(waitBetweenRetries):
 		}
