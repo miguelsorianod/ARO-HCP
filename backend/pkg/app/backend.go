@@ -505,6 +505,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	nodePoolCustomerPropertiesMigrationController := nodepoolpropertiescontroller.NewNodePoolCustomerPropertiesMigrationController(
+		b.options.CosmosDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
@@ -554,6 +561,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolPropertiesSyncController.Run(ctx, 20)
+				go nodePoolCustomerPropertiesMigrationController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
