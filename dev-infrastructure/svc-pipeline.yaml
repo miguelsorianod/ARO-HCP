@@ -175,8 +175,8 @@ resourceGroups:
   - name: delete-old-user-nodepools
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: ./scripts/delete-user-nodepools.sh
-    workingDir: .
+    command: ./delete-user-nodepools.sh
+    workingDir: ./scripts
     shellIdentity:
       input:
         resourceGroup: global
