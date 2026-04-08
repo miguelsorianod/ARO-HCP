@@ -44,6 +44,7 @@ data:
         # (default: 5M)
         storage.backlog.mem_limit 50M
         storage.metrics           on
+        Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
         HC_Errors_Count           5
@@ -191,6 +192,7 @@ data:
         Match metrics.fluentbit
         Host  0.0.0.0
         Port  9090
+
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
@@ -202,7 +204,18 @@ data:
         Database_Name ServiceLogs
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        buffer_dir "/var/kusto"
+        azure_kusto_buffer_key frontendLogs
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match aro-hcp-backend.logs
@@ -215,7 +228,18 @@ data:
         Database_Name ServiceLogs
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key backendLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match clusters-service.logs
@@ -228,7 +252,18 @@ data:
         Database_Name ServiceLogs
         Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key clustersServiceLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
@@ -240,7 +275,18 @@ data:
         Database_Name ServiceLogs
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key containerLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 
     [OUTPUT]
         Match kube-events.logs
@@ -253,7 +299,28 @@ data:
         Database_Name ServiceLogs
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key kubernetesEvents
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 
     [OUTPUT]
         Match systemd.*
@@ -266,7 +333,18 @@ data:
         Database_Name ServiceLogs
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key systemdLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            48M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -362,7 +440,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 5fb3e8ba68e71994b7caba2abfea3c65c9c86f883c0e5b7328c506f8cfbd7f33
+        checksum/configmap: 231a646cae4ac5cd54692c2ba80c8ef67342ce15aaa1afcaa0c78a257a5a1bba
     spec:
       serviceAccountName: 'arobit-forwarder'
       shareProcessNamespace: true
@@ -418,29 +496,31 @@ spec:
               cpu: 100m
               memory: 256Mi
           volumeMounts:
-            - name: varlog
+            - name: var-kusto
+              mountPath: /var/kusto
+            - name: var-log
               mountPath: /var/log
             - name: machine-id
               mountPath: /etc/machine-id
               readOnly: true
             - name: flb-storage
               mountPath: /var/fluent-bit/flb-storage
-            - name: varlibdockercontainers
+            - name: var-lib-docker-containers
               mountPath: /var/lib/docker/containers
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-            - name: kusto
-              mountPath: /var/fluent-bit/kusto
+      terminationGracePeriodSeconds: 45
       tolerations:
       - effect: NoSchedule
         key: infra
         operator: "Equal"
         value: "true"
       volumes:
-        - name: kusto
-          emptyDir: {}
+        - name: var-kusto
+          emptyDir:
+            sizeLimit: 12Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -450,10 +530,10 @@ spec:
         - name: machine-id
           hostPath:
             path: /etc/machine-id
-        - name: varlog
+        - name: var-log
           hostPath:
             path: /var/log
-        - name: varlibdockercontainers
+        - name: var-lib-docker-containers
           hostPath:
             path: /var/lib/docker/containers
         - name: cacrt-host

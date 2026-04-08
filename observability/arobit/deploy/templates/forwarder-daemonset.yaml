@@ -86,21 +86,21 @@ spec:
               memory: {{ .Values.forwarder.fluentbit.resources.limits.memory }}
 {{- end }}
           volumeMounts:
-            - name: varlog
+            - name: var-kusto
+              mountPath: /var/kusto
+            - name: var-log
               mountPath: /var/log
             - name: machine-id
               mountPath: /etc/machine-id
               readOnly: true
             - name: flb-storage
               mountPath: /var/fluent-bit/flb-storage
-            - name: varlibdockercontainers
+            - name: var-lib-docker-containers
               mountPath: /var/lib/docker/containers
               readOnly: true
             - name: flb-config
               mountPath: /forwarder/etc
               readOnly: true
-            - name: kusto
-              mountPath: /var/fluent-bit/kusto
         {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
             - name: shoebox-mappings
               mountPath: /shoebox-config
@@ -176,7 +176,7 @@ spec:
               exec:
                 command:
                 - "/bin/sleep"
-                - "60"
+                - "45"
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false
@@ -195,14 +195,16 @@ spec:
               name: geneva-certs-clusterlogs
               readOnly: true
         {{- end }}
+      terminationGracePeriodSeconds: 45
       tolerations:
       - effect: NoSchedule
         key: infra
         operator: "Equal"
         value: "true"
       volumes:
-        - name: kusto
-          emptyDir: {}
+        - name: var-kusto
+          emptyDir:
+            sizeLimit: 12Gi
         - name: sp-host
           hostPath:
             type: Directory
@@ -212,10 +214,10 @@ spec:
         - name: machine-id
           hostPath:
             path: /etc/machine-id
-        - name: varlog
+        - name: var-log
           hostPath:
             path: /var/log
-        - name: varlibdockercontainers
+        - name: var-lib-docker-containers
           hostPath:
             path: /var/lib/docker/containers
         - name: cacrt-host

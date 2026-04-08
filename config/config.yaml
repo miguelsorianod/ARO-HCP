@@ -117,6 +117,7 @@ defaults:
           memory: 1Gi
     kusto:
       enabled: false
+      buffering: true
       environmentName: "{{ .ctx.environment }}"
     mdsd:
       enabled: true

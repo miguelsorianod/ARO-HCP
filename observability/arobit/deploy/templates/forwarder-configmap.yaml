@@ -1,3 +1,15 @@
+{{- define "buffer_settings" }}
+        buffering_enabled           {{ .Values.forwarder.kusto.buffering_enabled }} 
+        upload_timeout              {{ .Values.forwarder.kusto.upload_timeout }}
+        upload_file_size            {{ .Values.forwarder.kusto.upload_file_size }}
+        buffer_file_delete_early    {{ .Values.forwarder.kusto.buffer_file_delete_early }}
+        unify_tag                   {{ .Values.forwarder.kusto.unify_tag }}
+        store_dir_limit_size        {{ .Values.forwarder.kusto.store_dir_limit_size }}
+        blob_uri_length             {{ .Values.forwarder.kusto.blob_uri_length }}
+        scheduler_max_retries       {{ .Values.forwarder.kusto.scheduler_max_retries }}
+        delete_on_max_upload_error  {{ .Values.forwarder.kusto.delete_on_max_upload_error }}
+        io_timeout                  {{ .Values.forwarder.kusto.io_timeout }}
+{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -38,6 +50,7 @@ data:
         # (default: 5M)
         storage.backlog.mem_limit 50M
         storage.metrics           on
+        Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
         HC_Errors_Count           5
@@ -344,8 +357,13 @@ data:
         Database_Name {{ .Values.forwarder.kusto.hostedControlPlaneLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
-{{- else }}
+        azure_kusto_buffer_key containerLogsOcm
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+{{- end }}
+
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
@@ -357,7 +375,11 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name frontendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        azure_kusto_buffer_key frontendLogs
+        {{- template "buffer_settings" . }}
+{{- end }}
 
     [OUTPUT]
         Match aro-hcp-backend.logs
@@ -370,7 +392,11 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key backendLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
 
     [OUTPUT]
         Match clusters-service.logs
@@ -383,7 +409,10 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name clustersServiceLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key clustersServiceLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
 {{- end }}
     [OUTPUT]
         Match kubernetes.*
@@ -396,7 +425,11 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name containerLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key containerLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
 
     [OUTPUT]
         Match kube-events.logs
@@ -409,7 +442,21 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name kubernetesEvents
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key kubernetesEvents
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 
     [OUTPUT]
         Match systemd.*
@@ -422,4 +469,8 @@ data:
         Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
         Table_Name systemdLogs
         ingestion_mapping_reference ingestionMapping
-        buffer_dir /var/fluent-bit/kusto
+        azure_kusto_buffer_key systemdLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}

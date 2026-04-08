@@ -2406,6 +2406,10 @@
             },
             "environmentName": {
               "type": "string"
+            },
+            "buffering": {
+              "type": "boolean",
+              "description": "Enable disk buffering for kusto output plugin"
             }
           },
           "additionalProperties": false,
