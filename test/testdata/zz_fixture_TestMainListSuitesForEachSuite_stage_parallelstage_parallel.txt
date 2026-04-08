@@ -65,4 +65,5 @@ Customer should upgrade a nodepool from 4.20.z to 4.21.zLatest
 Customer should upgrade a nodepool from 4.21.z to 4.21.zLatest
 Customer should upgrade a nodepool from 4.20.z to 4.20.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
+Customer should be able to forward control plane logs to a storage account via shoebox diagnostic settings
 Customer should not be able to perform various invalid operations on cluster resources
