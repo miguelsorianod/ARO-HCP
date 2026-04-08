@@ -32,6 +32,7 @@ require (
 	go.uber.org/mock v0.6.0
 	gotest.tools v2.2.0+incompatible
 	k8s.io/apimachinery v0.34.3
+	k8s.io/component-base v0.34.3
 	k8s.io/utils v0.0.0-20260108192941-914a6e750570
 	sigs.k8s.io/randfill v1.0.0
 )
@@ -89,6 +90,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.13 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
