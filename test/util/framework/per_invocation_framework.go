@@ -80,8 +80,7 @@ const (
 // requests with Retry-After values of 60+ seconds.
 var azureRetryOptions = policy.RetryOptions{
 	MaxRetries:    6,
-	RetryDelay:    5 * time.Second,
-	MaxRetryDelay: 2 * time.Minute,
+	MaxRetryDelay: 5 * time.Minute,
 }
 
 // InvocationContext requires the following env vars
