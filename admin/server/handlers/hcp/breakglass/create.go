@@ -36,6 +36,14 @@ import (
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned/typed/sessiongate/v1alpha1"
 )
 
+// breakglass credentials for groups mentioned in this map are rewritten
+// this allows us get remove the sre-breakglass-role ACM policy while
+// keeping the same level of access for SREs
+var groupRewriteMap = map[string]string{
+	"aro-sre-pso": "system:cluster-readers",
+	"aro-sre-csa": "system:masters",
+}
+
 // HCPBreakglassSessionCreationHandler handles requests to create breakglass sessions.
 // This endpoint is accessed exclusively via Geneva Actions. See package documentation for security model.
 type HCPBreakglassSessionCreationHandler struct {
@@ -183,7 +191,15 @@ func (h *HCPBreakglassSessionCreationHandler) validateSessionParameters(request 
 		}
 	}
 
-	return body.Group, ttl, utilerrors.NewAggregate(errs)
+	// not every group accepted as payload has a corresponding RBAC group within HCPs
+	// so we rewrite the actual group here. this is a temporary measure until
+	// the geneva action will start adopting the target group names.
+	group := body.Group
+	if rewrittenGroup, ok := groupRewriteMap[group]; ok {
+		group = rewrittenGroup
+	}
+
+	return group, ttl, utilerrors.NewAggregate(errs)
 }
 
 // clusterServiceError checks if err is an OCM not-found error and returns a

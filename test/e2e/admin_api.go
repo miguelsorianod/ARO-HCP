@@ -94,14 +94,13 @@ var _ = Describe("SRE", func() {
 
 			// commonVerifiers are run for both aro-sre-pso and aro-sre-csa access levels.
 			// They cover actual data access smoke tests and SSAR-based read permission
-			// checks matching the system:aro-sre ClusterRole (which is the lower bound
-			// that both levels must satisfy).
+			// for both aro-sre-pso and aro-sre-csa access levels.
 			commonVerifiers := []verifiers.HostedClusterVerifier{
 				// Actual data access smoke tests
 				verifiers.VerifyListNamespaced("kube-system", "pods", "configmaps"),
 				verifiers.VerifyList("nodes", "namespaces"),
 				//verifiers.VerifyGetDeploymentLogs("openshift-monitoring", "prometheus-operator", ""),
-				// Read access across API groups via SSAR (system:aro-sre ClusterRole)
+				// Read access across API groups
 				verifiers.VerifyRBACAllowed(
 					// core API resources
 					verifiers.CanList("", "services"),
@@ -147,9 +146,6 @@ var _ = Describe("SRE", func() {
 					verifiers.CanList("discovery.k8s.io", "endpointslices"),
 					// certificates
 					verifiers.CanList("certificates.k8s.io", "certificatesigningrequests"),
-					// flowcontrol
-					verifiers.CanList("flowcontrol.apiserver.k8s.io", "flowschemas"),
-					verifiers.CanList("flowcontrol.apiserver.k8s.io", "prioritylevelconfigurations"),
 					// scheduling
 					verifiers.CanList("scheduling.k8s.io", "priorityclasses"),
 					// node
@@ -163,14 +159,6 @@ var _ = Describe("SRE", func() {
 					verifiers.CanList("config.openshift.io", "clusterversions"),
 					verifiers.CanList("config.openshift.io", "clusteroperators"),
 					verifiers.CanList("config.openshift.io", "infrastructures"),
-					// OpenShift: monitoring
-					verifiers.CanList("monitoring.coreos.com", "prometheusrules"),
-					verifiers.CanList("monitoring.coreos.com", "servicemonitors"),
-					// OpenShift: machine
-					verifiers.CanList("machine.openshift.io", "machines"),
-					verifiers.CanList("machine.openshift.io", "machinesets"),
-					// OpenShift: operator
-					verifiers.CanList("operator.openshift.io", "ingresscontrollers"),
 					// OpenShift: security
 					verifiers.CanList("security.openshift.io", "securitycontextconstraints"),
 					// OpenShift: route
@@ -193,7 +181,7 @@ var _ = Describe("SRE", func() {
 			By("creating SRE breakglass credentials with aro-sre-pso permissions")
 			aroSrePsoRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-pso", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
-			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre-pso", aroSrePsoRestConfig, append(commonVerifiers,
+			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:cluster-readers", aroSrePsoRestConfig, append(commonVerifiers,
 				// Negative: secrets read is forbidden (actual access test)
 				verifiers.ExpectForbidden(verifiers.VerifyListNamespaced("kube-system", "secrets")),
 				// Negative: write operations are forbidden
@@ -225,7 +213,7 @@ var _ = Describe("SRE", func() {
 			By("creating SRE breakglass credentials with aro-sre-csa permissions")
 			aroSreCsaRestConfig, expiresAt, err := tc.CreateSREBreakglassCredentials(ctx, hcpResourceID, 2*time.Minute, "aro-sre-csa", currentIdentity)
 			Expect(err).NotTo(HaveOccurred())
-			err = runCreateSREBreakglassCredentialsVerifier(ctx, "aro-sre-csa", aroSreCsaRestConfig, append(commonVerifiers,
+			err = runCreateSREBreakglassCredentialsVerifier(ctx, "system:masters", aroSreCsaRestConfig, append(commonVerifiers,
 				// Positive: can read secrets (cluster-admin)
 				verifiers.VerifyListNamespaced("kube-system", "secrets"),
 				// Positive: has full write access (cluster-admin)
@@ -237,6 +225,9 @@ var _ = Describe("SRE", func() {
 					verifiers.CanCreate("apps", "deployments"),
 					verifiers.CanDelete("apps", "deployments"),
 					verifiers.CanUpdate("apps", "deployments"),
+					verifiers.CanList("monitoring.coreos.com", "prometheusrules"),
+					verifiers.CanList("monitoring.coreos.com", "servicemonitors"),
+					verifiers.CanList("operator.openshift.io", "ingresscontrollers"),
 				),
 			))
 			Expect(err).NotTo(HaveOccurred())
