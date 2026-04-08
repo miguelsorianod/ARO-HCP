@@ -87,6 +87,8 @@ spec:
         - "--insecure-azure-arm-permissions-manager-identity-tenant-id"
         - "{{ .Values.armPermissionsManagerIdentity.tenantId }}"
         {{- end }}
+        - "--azure-cluster-scoped-identities-role-set-name"
+        - "{{ .Values.clusterScopedIdentitiesConfig.roleSetName }}"
         env:
         - name: DB_NAME
           valueFrom:
