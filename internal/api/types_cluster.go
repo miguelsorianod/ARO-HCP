@@ -85,6 +85,11 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// is set to a dummy value by our tools/testsuites/developers when
 	// creating ARO-HCP Clusters
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
+	ClusterUID                            string `json:"clusterUID,omitempty"`
+	// BillingDocumentCosmosID is the Cosmos DB document ID of the billing document
+	// associated with this cluster. It is set when the billing document is created
+	// and used to avoid redundant creation attempts.
+	BillingDocumentCosmosID string `json:"billingDocumentCosmosID,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

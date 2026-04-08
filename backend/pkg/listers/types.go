@@ -33,6 +33,7 @@ type BackendListers struct {
 	ServiceProviderClusterLister          ServiceProviderClusterLister
 	ServiceProviderNodePoolLister         ServiceProviderNodePoolLister
 	ControllerLister                      ControllerLister
+	BillingLister                         BillingLister
 }
 
 const (
@@ -40,6 +41,7 @@ const (
 	ByCluster       = "byCluster"
 	ByNodePool      = "byNodePool"
 	ByExternalAuth  = "byExternalAuth"
+	BySubscription  = "bySubscription"
 )
 
 // listAll retrieves all items from a store, casting each to *T.

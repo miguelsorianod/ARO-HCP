@@ -276,3 +276,33 @@ func (l *SliceSubscriptionLister) Get(ctx context.Context, subscriptionID string
 	}
 	return nil, database.NewNotFoundError()
 }
+
+// SliceBillingLister implements listers.BillingLister backed by a slice.
+type SliceBillingLister struct {
+	BillingDocuments []*database.BillingDocument
+}
+
+var _ listers.BillingLister = &SliceBillingLister{}
+
+func (l *SliceBillingLister) List(ctx context.Context) ([]*database.BillingDocument, error) {
+	return l.BillingDocuments, nil
+}
+
+func (l *SliceBillingLister) GetByID(ctx context.Context, billingDocID string) (*database.BillingDocument, error) {
+	for _, bd := range l.BillingDocuments {
+		if strings.EqualFold(bd.ID, billingDocID) {
+			return bd, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscriptionID string) ([]*database.BillingDocument, error) {
+	var result []*database.BillingDocument
+	for _, bd := range l.BillingDocuments {
+		if strings.EqualFold(bd.SubscriptionID, subscriptionID) {
+			result = append(result, bd)
+		}
+	}
+	return result, nil
+}

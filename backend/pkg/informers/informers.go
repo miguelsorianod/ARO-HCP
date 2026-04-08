@@ -47,6 +47,7 @@ const (
 	ControllerRelistDuration               = 30 * time.Second
 	ManagementClusterContentRelistDuration = 30 * time.Second
 	ActiveOperationsRelistDuration         = 10 * time.Second
+	BillingRelistDuration                  = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -90,6 +91,55 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 		&arm.Subscription{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+		},
+	)
+}
+
+// NewBillingInformer creates an unstarted SharedIndexInformer for billing documents
+// with a subscription index using the default relist duration.
+func NewBillingInformer(lister database.GlobalLister[database.BillingDocument]) cache.SharedIndexInformer {
+	return NewBillingInformerWithRelistDuration(lister, BillingRelistDuration)
+}
+
+// NewBillingInformerWithRelistDuration creates an unstarted SharedIndexInformer for billing documents
+// with a subscription index and a configurable relist duration.
+func NewBillingInformerWithRelistDuration(lister database.GlobalLister[database.BillingDocument], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing billing documents")
+			defer logger.Info("finished listing billing documents")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &database.BillingDocumentList{}
+			list.ResourceVersion = "0"
+			for docID, doc := range iter.Items(ctx) {
+				_ = docID
+				list.Items = append(list.Items, *doc)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		lw,
+		&database.BillingDocument{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.BySubscription: billingDocSubscriptionIndexFunc,
+			},
 		},
 	)
 }
@@ -585,4 +635,16 @@ func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
 
 func nodePoolResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
 	return findAncestorResourceID(api.NodePoolResourceType, resourceID)
+}
+
+// billingDocSubscriptionIndexFunc indexes billing documents by their subscription ID.
+func billingDocSubscriptionIndexFunc(obj interface{}) ([]string, error) {
+	doc, ok := obj.(*database.BillingDocument)
+	if !ok {
+		return nil, utils.TrackError(fmt.Errorf("unexpected type %T, expected *database.BillingDocument", obj))
+	}
+	if doc.SubscriptionID == "" {
+		return nil, nil
+	}
+	return []string{strings.ToLower(doc.SubscriptionID)}, nil
 }

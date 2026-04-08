@@ -36,6 +36,7 @@ type BackendInformers interface {
 	ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister)
 	Controllers() (cache.SharedIndexInformer, listers.ControllerLister)
 	ManagementClusterContents() (cache.SharedIndexInformer, listers.ManagementClusterContentLister)
+	BillingDocs() (cache.SharedIndexInformer, listers.BillingLister)
 
 	RunWithContext(ctx context.Context)
 }
@@ -66,6 +67,9 @@ type backendInformers struct {
 	controllerLister                 listers.ControllerLister
 	managementClusterContentInformer cache.SharedIndexInformer
 	managementClusterContentLister   listers.ManagementClusterContentLister
+
+	billingInformer cache.SharedIndexInformer
+	billingLister   listers.BillingLister
 }
 
 func (b *backendInformers) Subscriptions() (cache.SharedIndexInformer, listers.SubscriptionLister) {
@@ -104,6 +108,10 @@ func (b *backendInformers) ManagementClusterContents() (cache.SharedIndexInforme
 	return b.managementClusterContentInformer, b.managementClusterContentLister
 }
 
+func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, listers.BillingLister) {
+	return b.billingInformer, b.billingLister
+}
+
 func NewBackendInformers(ctx context.Context, globalListers database.GlobalListers) BackendInformers {
 	return NewBackendInformersWithRelistDuration(ctx, globalListers, nil)
 }
@@ -118,6 +126,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	controllerRelistDuration := ControllerRelistDuration
 	managementClusterContentRelistDuration := ManagementClusterContentRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
+	billingRelistDuration := BillingRelistDuration
 	if relistDuration != nil {
 		subscriptionRelistDuration = *relistDuration
 		clusterRelistDuration = *relistDuration
@@ -128,6 +137,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 		controllerRelistDuration = *relistDuration
 		managementClusterContentRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
+		billingRelistDuration = *relistDuration
 	}
 
 	ret := &backendInformers{}
@@ -140,6 +150,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.serviceProviderNodePoolInformer = NewServiceProviderNodePoolInformerWithRelistDuration(globalListers.ServiceProviderNodePools(), serviceProviderNodePoolRelistDuration)
 	ret.controllerInformer = NewControllerInformerWithRelistDuration(globalListers.Controllers(), controllerRelistDuration)
 	ret.managementClusterContentInformer = NewManagementClusterContentInformerWithRelistDuration(globalListers.ManagementClusterContents(), managementClusterContentRelistDuration)
+	ret.billingInformer = NewBillingInformerWithRelistDuration(globalListers.BillingDocs(), billingRelistDuration)
 
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
 	ret.activeOperationLister = listers.NewActiveOperationLister(ret.activeOperationInformer.GetIndexer())
@@ -150,6 +161,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, globalListers da
 	ret.serviceProviderNodePoolLister = listers.NewServiceProviderNodePoolLister(ret.serviceProviderNodePoolInformer.GetIndexer())
 	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
 	ret.managementClusterContentLister = listers.NewManagementClusterContentLister(ret.managementClusterContentInformer.GetIndexer())
+	ret.billingLister = listers.NewBillingLister(ret.billingInformer.GetIndexer())
 
 	return ret
 }
@@ -205,6 +217,11 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer wg.Done()
 		b.managementClusterContentInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		b.billingInformer.RunWithContext(ctx)
 	}()
 
 	<-ctx.Done()

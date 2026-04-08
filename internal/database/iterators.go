@@ -98,3 +98,62 @@ func (iter queryResourcesIterator[InternalAPIType, CosmosAPIType]) GetContinuati
 func (iter queryResourcesIterator[InternalAPIType, CosmosAPIType]) GetError() error {
 	return iter.err
 }
+
+type queryBillingIterator struct {
+	pager             *runtime.Pager[azcosmos.QueryItemsResponse]
+	singlePage        bool
+	continuationToken string
+	err               error
+}
+
+// newQueryBillingIterator is a failable push iterator for billing document queries.
+func newQueryBillingIterator(pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[BillingDocument] {
+	return &queryBillingIterator{pager: pager}
+}
+
+// newQueryBillingSinglePageIterator is a failable push iterator for billing documents
+// that stops at the end of the first page and includes a continuation token if
+// additional items are available.
+func newQueryBillingSinglePageIterator(pager *runtime.Pager[azcosmos.QueryItemsResponse]) DBClientIterator[BillingDocument] {
+	return &queryBillingIterator{pager: pager, singlePage: true}
+}
+
+// Items returns a push iterator that can be used directly in for/range loops.
+func (iter *queryBillingIterator) Items(ctx context.Context) DBClientIteratorItem[BillingDocument] {
+	return func(yield func(string, *BillingDocument) bool) {
+		for iter.pager.More() {
+			response, err := iter.pager.NextPage(ctx)
+			if err != nil {
+				iter.err = err
+				return
+			}
+			if iter.singlePage && response.ContinuationToken != nil {
+				iter.continuationToken = *response.ContinuationToken
+			}
+			for _, itemJSON := range response.Items {
+				var doc BillingDocument
+				if err := json.Unmarshal(itemJSON, &doc); err != nil {
+					iter.err = err
+					return
+				}
+
+				if !yield(doc.ID, &doc) {
+					return
+				}
+			}
+			if iter.singlePage {
+				return
+			}
+		}
+	}
+}
+
+// GetContinuationToken returns a continuation token for pagination.
+func (iter *queryBillingIterator) GetContinuationToken() string {
+	return iter.continuationToken
+}
+
+// GetError returns any error that occurred during iteration.
+func (iter *queryBillingIterator) GetError() error {
+	return iter.err
+}

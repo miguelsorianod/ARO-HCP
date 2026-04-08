@@ -84,44 +84,9 @@ func (m *MockDBClient) NewTransaction(pk string) database.DBTransaction {
 	return newMockTransaction(pk, m)
 }
 
-// CreateBillingDoc creates a new billing document.
-func (m *MockDBClient) CreateBillingDoc(ctx context.Context, doc *database.BillingDocument) error {
-	if doc.ResourceID == nil {
-		return fmt.Errorf("BillingDocument is missing a ResourceID")
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, exists := m.billing[doc.ID]; exists {
-		return &azcore.ResponseError{StatusCode: http.StatusConflict}
-	}
-
-	m.billing[doc.ID] = doc
-	return nil
-}
-
-// PatchBillingDoc patches a billing document.
-func (m *MockDBClient) PatchBillingDoc(ctx context.Context, resourceID *azcorearm.ResourceID, ops database.BillingDocumentPatchOperations) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Find the billing document by resourceID
-	var foundID string
-	for id, doc := range m.billing {
-		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
-			foundID = id
-			break
-		}
-	}
-
-	if len(foundID) == 0 {
-		return &azcore.ResponseError{StatusCode: http.StatusNotFound}
-	}
-
-	// Apply patch operations would be implemented here
-	// For now, just acknowledge the operation
-	return nil
+// BillingDocs returns a CRUD interface for billing documents.
+func (m *MockDBClient) BillingDocs(subscriptionID string) database.BillingDocCRUD {
+	return newMockBillingDocCRUD(m, subscriptionID)
 }
 
 // UntypedCRUD provides access to untyped resource operations.
@@ -564,3 +529,125 @@ func (c *MockLockClient) ReleaseLock(ctx context.Context, item *azcosmos.ItemRes
 }
 
 var _ database.LockClientInterface = &MockLockClient{}
+
+// mockBillingDocCRUD implements database.BillingDocCRUD for testing.
+type mockBillingDocCRUD struct {
+	mockDB         *MockDBClient
+	subscriptionID string
+}
+
+func newMockBillingDocCRUD(mockDB *MockDBClient, subscriptionID string) *mockBillingDocCRUD {
+	return &mockBillingDocCRUD{
+		mockDB:         mockDB,
+		subscriptionID: subscriptionID,
+	}
+}
+
+func (m *mockBillingDocCRUD) Create(ctx context.Context, doc *database.BillingDocument) error {
+	if doc.ResourceID == nil {
+		return fmt.Errorf("BillingDocument is missing a ResourceID")
+	}
+
+	m.mockDB.mu.Lock()
+	defer m.mockDB.mu.Unlock()
+
+	if _, exists := m.mockDB.billing[doc.ID]; exists {
+		return &azcore.ResponseError{StatusCode: http.StatusConflict}
+	}
+
+	m.mockDB.billing[doc.ID] = doc
+	return nil
+}
+
+func (m *mockBillingDocCRUD) GetByID(ctx context.Context, billingDocID string) (*database.BillingDocument, error) {
+	m.mockDB.mu.RLock()
+	defer m.mockDB.mu.RUnlock()
+
+	doc, exists := m.mockDB.billing[billingDocID]
+	if !exists || doc.SubscriptionID != m.subscriptionID {
+		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	}
+
+	return doc, nil
+}
+
+func (m *mockBillingDocCRUD) ListActive(ctx context.Context) ([]*database.BillingDocument, error) {
+	m.mockDB.mu.RLock()
+	defer m.mockDB.mu.RUnlock()
+
+	var docs []*database.BillingDocument
+	for _, doc := range m.mockDB.billing {
+		if strings.EqualFold(doc.SubscriptionID, m.subscriptionID) && doc.DeletionTime == nil {
+			docs = append(docs, doc)
+		}
+	}
+
+	return docs, nil
+}
+
+func (m *mockBillingDocCRUD) ListActiveForCluster(ctx context.Context, resourceID *azcorearm.ResourceID) ([]*database.BillingDocument, error) {
+	m.mockDB.mu.RLock()
+	defer m.mockDB.mu.RUnlock()
+
+	var docs []*database.BillingDocument
+	for _, doc := range m.mockDB.billing {
+		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
+			docs = append(docs, doc)
+		}
+	}
+
+	return docs, nil
+}
+
+func (m *mockBillingDocCRUD) PatchByID(ctx context.Context, billingDocID string, ops database.BillingDocumentPatchOperations) error {
+	m.mockDB.mu.Lock()
+	defer m.mockDB.mu.Unlock()
+
+	doc, exists := m.mockDB.billing[billingDocID]
+	if !exists || doc.SubscriptionID != m.subscriptionID {
+		return &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	}
+
+	// Apply patch operations (simplified for testing)
+	// Since BillingDocumentPatchOperations wraps azcosmos.PatchOperations which is opaque,
+	// we can't easily introspect what's being patched. For now, we assume SetDeletionTime
+	// is the primary operation and set it to current time if DeletionTime is not already set.
+	if doc.DeletionTime == nil {
+		now := time.Now()
+		doc.DeletionTime = &now
+	}
+	return nil
+}
+
+func (m *mockBillingDocCRUD) PatchByClusterID(ctx context.Context, resourceID *azcorearm.ResourceID, ops database.BillingDocumentPatchOperations) error {
+	m.mockDB.mu.Lock()
+	defer m.mockDB.mu.Unlock()
+
+	// Find all billing documents by resourceID
+	var foundDocs []*database.BillingDocument
+	for _, doc := range m.mockDB.billing {
+		if strings.EqualFold(doc.ResourceID.String(), resourceID.String()) && doc.DeletionTime == nil {
+			foundDocs = append(foundDocs, doc)
+		}
+	}
+
+	if len(foundDocs) == 0 {
+		return &azcore.ResponseError{
+			StatusCode: http.StatusNotFound,
+		}
+	}
+
+	// Apply patch operations to all found documents (simplified for testing)
+	// Since BillingDocumentPatchOperations wraps azcosmos.PatchOperations which is opaque,
+	// we can't easily introspect what's being patched. For now, we assume SetDeletionTime
+	// is the primary operation and set it to current time if DeletionTime is not already set.
+	now := time.Now()
+	for _, doc := range foundDocs {
+		if doc.DeletionTime == nil {
+			doc.DeletionTime = &now
+		}
+	}
+	return nil
+}
+
+var _ database.BillingDocCRUD = &mockBillingDocCRUD{}

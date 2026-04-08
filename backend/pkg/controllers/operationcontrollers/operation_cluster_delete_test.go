@@ -159,14 +159,14 @@ func TestOperationClusterDelete_SynchronizeOperation(t *testing.T) {
 			operation := fixture.newOperation(database.OperationRequestDelete)
 
 			// Create billing document for deletion test
-			billingDoc := database.NewBillingDocument(fixture.clusterResourceID)
+			billingDoc := database.NewBillingDocument(cluster.ServiceProviderProperties.ClusterUID, fixture.clusterResourceID)
 			billingDoc.CreationTime = createdAt
 			billingDoc.Location = testAzureLocation
 			billingDoc.TenantID = testTenantID
 
 			mockDB, err := databasetesting.NewMockDBClientWithResources(ctx, []any{cluster, operation})
 			require.NoError(t, err)
-			err = mockDB.CreateBillingDoc(ctx, billingDoc)
+			err = mockDB.BillingDocs(fixture.clusterResourceID.SubscriptionID).Create(ctx, billingDoc)
 			require.NoError(t, err)
 
 			mockCSClient := tt.setupMock(ctrl, fixture)
