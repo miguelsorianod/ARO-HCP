@@ -75,6 +75,15 @@ const (
 	StandardResourceGroupExpiration = 4 * time.Hour
 )
 
+// azureRetryOptions configures the Azure SDK retry policy for e2e tests.
+// The defaults (3 retries, 800ms delay) are insufficient when Azure throttles
+// requests with Retry-After values of 60+ seconds.
+var azureRetryOptions = policy.RetryOptions{
+	MaxRetries:    6,
+	RetryDelay:    5 * time.Second,
+	MaxRetryDelay: 2 * time.Minute,
+}
+
 // InvocationContext requires the following env vars
 // CUSTOMER_SUBSCRIPTION
 // AZURE_TENANT_ID
@@ -144,6 +153,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 	if tc.isDevelopmentEnvironment {
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
+				Retry: azureRetryOptions,
 				Transport: &proxiedConnectionTransporter{
 					delegate: tc.defaultTransport,
 				},
@@ -156,6 +166,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 	}
 	return &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
+			Retry: azureRetryOptions,
 			PerCallPolicies: []policy.Policy{
 				NewLROPollerRetryDeploymentNotFoundPolicy(),
 				&sanitizeAuthHeaderPolicy{},
@@ -172,6 +183,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		}
 		return &azcorearm.ClientOptions{
 			ClientOptions: azcore.ClientOptions{
+				Retry: azureRetryOptions,
 				Cloud: cloud.Configuration{
 					ActiveDirectoryAuthorityHost: "https://login.microsoftonline.com/",
 					Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
@@ -194,6 +206,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 	}
 	return &azcorearm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
+			Retry: azureRetryOptions,
 			PerCallPolicies: []policy.Policy{
 				&sanitizeAuthHeaderPolicy{},
 			},
