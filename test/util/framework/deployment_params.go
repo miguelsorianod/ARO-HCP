@@ -153,7 +153,8 @@ type NodePoolParams struct {
 	// When omitted from the create payload or nil here, the cluster-configured global nodeDrainTimeoutMinutes kicks in.
 	NodeDrainTimeoutMinutes *int32
 	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
-	AutoScaling *NodePoolAutoScalingParams
+	AutoScaling      *NodePoolAutoScalingParams
+	AvailabilityZone string
 }
 
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
