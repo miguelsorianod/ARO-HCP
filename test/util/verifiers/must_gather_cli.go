@@ -181,12 +181,12 @@ func verifyDirHasLogFiles(dirPath string) error {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".log") {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".jsonl") {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("no .log files found in %s", dirPath)
+	return fmt.Errorf("no .jsonl files found in %s", dirPath)
 }
 
 // infraClusterNames derives SVC and MGMT cluster names from the BUILD_ID env var.
