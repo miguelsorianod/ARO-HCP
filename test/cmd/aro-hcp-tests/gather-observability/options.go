@@ -62,7 +62,6 @@ func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.RenderedConfig, "rendered-config", opts.RenderedConfig, "Path to the rendered configuration YAML file.")
 	cmd.Flags().StringVar(&opts.SubscriptionID, "subscription-id", opts.SubscriptionID, "Azure subscription ID.")
 	cmd.Flags().StringVar(&opts.StartTimeFallback, "start-time-fallback", opts.StartTimeFallback, "Optional RFC3339 time to use as start time fallback when steps and test timing are unavailable.")
-	cmd.Flags().StringVar(&opts.QueriesConfigPath, "queries-config", opts.QueriesConfigPath, "Path to YAML file specifying PromQL queries to execute and chart.")
 	cmd.Flags().StringVar(&opts.SeverityThreshold, "severity-threshold", opts.SeverityThreshold, "Include alerts at this severity level or more critical (Sev0=critical .. Sev4=verbose). E.g. Sev2 includes Sev0, Sev1, Sev2. If not set, all severities are shown.")
 	return nil
 }
@@ -73,7 +72,6 @@ type RawOptions struct {
 	RenderedConfig    string
 	SubscriptionID    string
 	StartTimeFallback string
-	QueriesConfigPath string
 	SeverityThreshold string
 }
 
@@ -199,27 +197,25 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		cred:              cred,
 	}
 
-	if o.QueriesConfigPath != "" {
-		queries, err := loadQueriesConfig(o.QueriesConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load queries config: %w", err)
-		}
-		completed.Queries = queries
-		logger.Info("loaded queries config", "path", o.QueriesConfigPath, "queries", len(queries.Queries))
-
-		// Resolve Prometheus endpoints eagerly so we fail fast
-		completed.SvcPromEndpoint, err = lookupPrometheusEndpoint(ctx, cred, o.SubscriptionID, regionRG, svcWorkspace)
-		if err != nil {
-			return nil, fmt.Errorf("failed to look up svc Prometheus endpoint for workspace %s in %s: %w", svcWorkspace, regionRG, err)
-		}
-		logger.Info("resolved svc Prometheus endpoint", "endpoint", completed.SvcPromEndpoint)
-
-		completed.HcpPromEndpoint, err = lookupPrometheusEndpoint(ctx, cred, o.SubscriptionID, regionRG, hcpWorkspace)
-		if err != nil {
-			return nil, fmt.Errorf("failed to look up hcp Prometheus endpoint for workspace %s in %s: %w", hcpWorkspace, regionRG, err)
-		}
-		logger.Info("resolved hcp Prometheus endpoint", "endpoint", completed.HcpPromEndpoint)
+	queries, err := loadQueriesConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load queries config: %w", err)
 	}
+	completed.Queries = queries
+	logger.Info("loaded embedded queries config", "queries", len(queries.Queries))
+
+	// Resolve Prometheus endpoints eagerly so we fail fast
+	completed.SvcPromEndpoint, err = lookupPrometheusEndpoint(ctx, cred, o.SubscriptionID, regionRG, svcWorkspace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up svc Prometheus endpoint for workspace %s in %s: %w", svcWorkspace, regionRG, err)
+	}
+	logger.Info("resolved svc Prometheus endpoint", "endpoint", completed.SvcPromEndpoint)
+
+	completed.HcpPromEndpoint, err = lookupPrometheusEndpoint(ctx, cred, o.SubscriptionID, regionRG, hcpWorkspace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up hcp Prometheus endpoint for workspace %s in %s: %w", hcpWorkspace, regionRG, err)
+	}
+	logger.Info("resolved hcp Prometheus endpoint", "endpoint", completed.HcpPromEndpoint)
 
 	return &Options{completedOptions: completed}, nil
 }
