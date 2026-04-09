@@ -2,6 +2,7 @@ rule_files:
 - arobit-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
+# ArobitForwarderJobUp - alert fires
 - interval: 1m
   input_series:
   - series: 'up{job="kube-state-metrics",cluster="test"}'
@@ -14,12 +15,180 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: ArobitForwarderJobUp
-        severity: critical
+        severity: warning
         cluster: test
       exp_annotations:
         description: |
-          Arobit forwarder has not been reachable for the past 15 minutes.
-          This may indicate that the Arobit forwarder is down, or experiencing a crash loop.
-          Check the status of the Arobit forwarder pods, service endpoints, and network connectivity.
+          The Arobit forwarder metrics endpoint on cluster test has been unreachable for 15 minutes.
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
-        summary: Arobit forwarder is unreachable for 15 minutes.
+        summary: Arobit forwarder metrics endpoint is unreachable on cluster test.
+# LowOutputBytesProcessed - alert fires for azure_kusto output with low throughput
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_proc_bytes_total{pod="arobit-12345",cluster="test",name="azure_kusto.0"}'
+    values: "100+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: LowOutputBytesProcessed
+    exp_alerts:
+    - exp_labels:
+        alertname: LowOutputBytesProcessed
+        severity: warning
+        cluster: test
+        pod: arobit-12345
+      exp_annotations:
+        description: |
+          Fluent Bit pod arobit-12345 on cluster test output is low.
+          The metric fluentbit_output_proc_bytes_total only counts bytes from chunks that were sent successfully, this indicates a problem with the output plugin or low input.
+          Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+        summary: No log data delivered to Kusto by arobit-12345 for 15 minutes.
+# LowOutputBytesProcessed - healthy azure_kusto pod, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_proc_bytes_total{pod="arobit-healthy",cluster="test",name="azure_kusto.0"}'
+    values: "100+5000x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: LowOutputBytesProcessed
+    exp_alerts: []
+# LowOutputBytesProcessed - non-kusto output stalled, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_proc_bytes_total{pod="arobit-other",cluster="test",name="stdout.0"}'
+    values: "100+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: LowOutputBytesProcessed
+    exp_alerts: []
+# FluentBitIngestionPaused - alert fires
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_input_ingestion_paused{pod="arobit-paused",cluster="test"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: FluentBitIngestionPaused
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitIngestionPaused
+        severity: warning
+        cluster: test
+        pod: arobit-paused
+      exp_annotations:
+        description: |
+          Fluent Bit pod arobit-paused on cluster test has paused collecting new log data for at least 5 minutes.
+          Ingestion pauses when Fluent Bit's internal memory or storage buffers are full, typically caused by backpressure from a slow or failing output.
+          Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+        summary: Fluent Bit input ingestion paused on arobit-paused due to backpressure.
+# FluentBitIngestionPaused - healthy pod, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_input_ingestion_paused{pod="arobit-ok",cluster="test"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: FluentBitIngestionPaused
+    exp_alerts: []
+# FluentBitHighOutputRetries - alert fires for azure_kusto
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_retries_total{pod="arobit-retrying",cluster="test",name="azure_kusto.0"}'
+    values: "0+1000x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitHighOutputRetries
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitHighOutputRetries
+        severity: warning
+        cluster: test
+        pod: arobit-retrying
+      exp_annotations:
+        description: |
+          Fluent Bit pod arobit-retrying on cluster test is retrying chunk delivery.
+          Retries occur when the azure_kusto output encounters a recoverable error (e.g. transient network failure, HTTP 429/5xx from Kusto).
+          Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+        summary: High Kusto output retry rate on arobit-retrying (> 3/s for 5 min).
+# FluentBitHighOutputRetries - low retries, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_retries_total{pod="arobit-few-retries",cluster="test",name="azure_kusto.0"}'
+    values: "0+1x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FluentBitHighOutputRetries
+    exp_alerts: []
+# FluentBitHighOutputRetries - non-kusto output retrying, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_retries_total{pod="arobit-other-retries",cluster="test",name="null.0"}'
+    values: "0+1000x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitHighOutputRetries
+    exp_alerts: []
+# FluentBitOutputErrors - alert fires for azure_kusto
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_errors_total{pod="arobit-errors",cluster="test",name="azure_kusto.0"}'
+    values: "0+100x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitOutputErrors
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitOutputErrors
+        severity: warning
+        cluster: test
+        pod: arobit-errors
+      exp_annotations:
+        description: |
+          Fluent Bit pod arobit-errors on cluster test is encountering errors sending log chunks to Kusto.
+          Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+        summary: Unrecoverable Kusto output errors on arobit-errors - log data is being dropped.
+# FluentBitOutputErrors - no errors, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_errors_total{pod="arobit-no-errors",cluster="test",name="azure_kusto.0"}'
+    values: "0+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitOutputErrors
+    exp_alerts: []
+# FluentBitOutputErrors - non-kusto output errors, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_errors_total{pod="arobit-other-errors",cluster="test",name="stdout.0"}'
+    values: "0+100x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitOutputErrors
+    exp_alerts: []
+# FluentBitOutputRetriesExhausted - alert fires for azure_kusto
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_retries_failed_total{pod="arobit-exhausted",cluster="test",name="azure_kusto.0"}'
+    values: "0+100x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitOutputRetriesExhausted
+    exp_alerts:
+    - exp_labels:
+        alertname: FluentBitOutputRetriesExhausted
+        severity: warning
+        cluster: test
+        pod: arobit-exhausted
+      exp_annotations:
+        description: |
+          Fluent Bit pod arobit-exhausted on cluster test has chunks that exceeded the configured Retry_Limit for the Kusto output.
+          Investigate the Fluent Bit logs for the specific error details and check the Kusto instance health.
+        summary: Kusto output retries exhausted on arobit-exhausted - chunks discarded after max retries.
+# FluentBitOutputRetriesExhausted - no failed retries, no alert
+- interval: 1m
+  input_series:
+  - series: 'fluentbit_output_retries_failed_total{pod="arobit-no-exhaust",cluster="test",name="azure_kusto.0"}'
+    values: "0+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: FluentBitOutputRetriesExhausted
+    exp_alerts: []
