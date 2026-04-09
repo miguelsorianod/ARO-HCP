@@ -33,6 +33,10 @@ resource aksDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01
         enabled: true
       }
       {
+        category: 'guard'
+        enabled: true
+      }
+      {
         category: 'kube-scheduler'
         enabled: true
       }
