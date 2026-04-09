@@ -158,5 +158,18 @@ var _ = Describe("Customer", func() {
 			By("verifying that the managed resource group still exists")
 			_, err = tc.GetARMResourcesClientFactoryOrDie(ctx).NewResourceGroupsClient().Get(ctx, clusterParams2.ManagedResourceGroupName, nil)
 			Expect(err).NotTo(HaveOccurred())
+
+			By("testing resource group-level cluster listing")
+			pager := clusterClient.NewListByResourceGroupPager(*customerResourceGroup.Name, nil)
+			var foundClusters []string
+			for pager.More() {
+				clusterList, err := pager.NextPage(ctx)
+				Expect(err).NotTo(HaveOccurred())
+				for _, cluster := range clusterList.Value {
+					foundClusters = append(foundClusters, *cluster.Name)
+				}
+			}
+			Expect(foundClusters).To(HaveLen(2), "Expected exactly two clusters listed in resource group %s", *customerResourceGroup.Name)
+			Expect(foundClusters).To(ContainElements(customerClusterName, customerClusterName2))
 		})
 })
