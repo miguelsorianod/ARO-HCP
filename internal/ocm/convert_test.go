@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -1443,16 +1442,13 @@ func TestBuildCSCluster(t *testing.T) {
 				hcpCluster = api.ClusterTestCase(t, tc.hcpCluster)
 			}
 
-			// Create request headers
-			requestHeader := http.Header{}
-			requestHeader.Set(arm.HeaderNameHomeTenantID, api.TestTenantID)
-			requestHeader.Set(arm.HeaderNameIdentityURL, api.TestManagedIdentitiesDataPlaneIdentityURL)
+			hcpCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = api.TestManagedIdentitiesDataPlaneIdentityURL
 
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)
 
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, requestHeader, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster)
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
