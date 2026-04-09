@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/templatize
 go 1.25.5
 
 require (
-	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
 	github.com/Azure/ARO-Tools/config v0.0.0-20260324125451-f78af490048c
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260324125451-f78af490048c
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260324125451-f78af490048c
@@ -308,5 +308,3 @@ require (
 replace helm.sh/helm/v4 => github.com/geoberle/helm/v4 v4.0.0-20251102095138-e64345e0f7ed
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65
-
-replace github.com/Azure/ARO-HCP/tooling/cleanup-sweeper => ../cleanup-sweeper
