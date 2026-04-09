@@ -18,9 +18,12 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
@@ -87,6 +90,18 @@ func DefaultOpenshiftControlPlaneVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_CONTROLPLANE_VERSION")
 	if len(version) == 0 {
 		version = DefaultOCPVersionId
+		// For nightly channel, calculate the latest version for the default Y stream
+		if DefaultOpenshiftChannelGroup() == "nightly" {
+			var err error
+			version, err = GetLatestInstallVersionForNightlyChannel(version)
+			if err != nil {
+				if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) {
+					Skip(fmt.Sprintf("No install version found for %s in nightly channel (%s)", version, err.Error()))
+				} else {
+					Fail(fmt.Sprintf("failed to get latest install version for nightly channel: %s", err.Error()))
+				}
+			}
+		}
 	}
 	return version
 }
@@ -103,6 +118,18 @@ func DefaultOpenshiftNodePoolVersionId() string {
 	version := os.Getenv("ARO_HCP_OPENSHIFT_NODEPOOL_VERSION")
 	if len(version) == 0 {
 		version = DefaultOCPNodePoolVersionId
+		// For nightly channel, calculate the latest version for the default Y stream (it's the same as the control plane version)
+		if DefaultOpenshiftNodePoolChannelGroup() == "nightly" {
+			var err error
+			version, err = GetLatestInstallVersionForNightlyChannel(DefaultOCPVersionId)
+			if err != nil {
+				if errors.Is(err, ErrNightlyReleaseStreamNotFound) || errors.Is(err, ErrNoAcceptedNightlyTags) {
+					Skip(fmt.Sprintf("No node pool install version found for %s in nightly channel (%s)", version, err.Error()))
+				} else {
+					Fail(fmt.Sprintf("failed to get latest node pool install version for nightly channel: %s", err.Error()))
+				}
+			}
+		}
 	}
 	return version
 }

@@ -17,6 +17,7 @@ package e2e
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -65,22 +66,25 @@ var _ = Describe("ARO-HCP", func() {
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
 			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
-			// Calculate the control plane version
-			calculatedControlPlaneVersion, err := framework.GetLatestInstallVersion(channelGroup, version)
-			if err != nil {
-				// Only skip when no versions are found; fail for unexpected errors
-				if strings.Contains(err.Error(), "no versions found") || strings.Contains(err.Error(), "no graph nodes found") {
-					Skip(fmt.Sprintf("No install version found for %s in %s channel (%s)", version, channelGroup, err.Error()))
+			clusterParams.OpenshiftVersionId = version
+			// For nightly channel, calculate the latest version for the default Y stream
+			if clusterParams.ChannelGroup == "nightly" {
+				var err error
+				clusterParams.OpenshiftVersionId, err = framework.GetLatestInstallVersionForNightlyChannel(version)
+				if err != nil {
+					if errors.Is(err, framework.ErrNightlyReleaseStreamNotFound) || errors.Is(err, framework.ErrNoAcceptedNightlyTags) {
+						Skip(fmt.Sprintf("No node pool install version found for %s in nightly channel (%s)", version, err.Error()))
+					} else {
+						Fail(fmt.Sprintf("failed to get latest node pool install version for nightly channel: %s", err.Error()))
+					}
 				}
-				Expect(err).NotTo(HaveOccurred())
 			}
-			clusterParams.OpenshiftVersionId = calculatedControlPlaneVersion
 
 			// TODO: remove this filter when https://redhat.atlassian.net/browse/ARO-25490 and https://redhat.atlassian.net/browse/ARO-24955 are closed
-			calculatedControlPlaneSemver, err := semver.ParseTolerant(calculatedControlPlaneVersion)
+			calculatedControlPlaneSemver, err := semver.ParseTolerant(clusterParams.OpenshiftVersionId)
 			Expect(err).NotTo(HaveOccurred(), "calculated control plane version was not semver parseable")
 			if calculatedControlPlaneSemver.Major > 4 || (calculatedControlPlaneSemver.Major == 4 && calculatedControlPlaneSemver.Minor >= 21) {
-				Skip(fmt.Sprintf("Skipping test for control plane version %s: versions >= 4.21 are not supported by this test", calculatedControlPlaneVersion))
+				Skip(fmt.Sprintf("Skipping test for control plane version %s: versions >= 4.21 are not supported by this test", clusterParams.OpenshiftVersionId))
 			}
 
 			By("creating resource group")
