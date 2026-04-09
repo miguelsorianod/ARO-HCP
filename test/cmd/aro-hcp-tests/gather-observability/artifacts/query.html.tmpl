@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{.Title}}</title>
+    <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
+    <style>
+        body { font-family: 'Roboto', sans-serif; margin: 16px; padding: 0; background-color: #000; color: #fff; }
+        .query-footer { max-width: 1200px; margin: 20px auto; font-family: monospace; color: #ccc; }
+        .query-footer summary { cursor: pointer; font-family: sans-serif; font-size: 14px; font-weight: bold; color: #fff; }
+        .query-footer pre {
+            background: #222; padding: 12px; border-radius: 4px;
+            overflow-x: auto; white-space: pre-wrap; color: #ccc;
+        }
+        .copy-btn {
+            margin-left: 8px; padding: 2px 10px; cursor: pointer;
+            font-size: 12px; vertical-align: middle;
+            background: #333; color: #fff; border: 1px solid #555;
+        }
+        .no-results {
+            max-width: 1200px; margin: 40px auto; text-align: center;
+        }
+        .no-results h2 { margin-bottom: 4px; color: #4E9AF1; }
+        .no-results .subtitle { color: #888; }
+        .no-results .message { margin: 40px 0; font-size: 18px; color: #999; }
+    </style>
+</head>
+<body>
+{{if .HasData}}
+    {{.ChartHTML}}
+{{else}}
+    <div class="no-results">
+        <h2>{{.Title}}</h2>
+        <p class="subtitle">Window: {{.TimeWindow.Start}} &mdash; {{.TimeWindow.End}}</p>
+        {{if .Error}}
+        <p class="message" style="color:#c62828;">Query failed: {{.Error}}</p>
+        {{else}}
+        <p class="message">No results returned for this query.</p>
+        {{end}}
+    </div>
+{{end}}
+    <div class="query-footer">
+        <details>
+            <summary>PromQL Query
+                <button class="copy-btn" id="copy-promql">Copy</button>
+            </summary>
+            <pre id="promql-text">{{.Query}}</pre>
+        </details>
+    </div>
+    <div style="height: 30px;"></div>
+    <script>
+        document.getElementById("copy-promql").addEventListener("click", function() {
+            var text = document.getElementById("promql-text").textContent;
+            navigator.clipboard.writeText(text).then(function() {
+                var btn = document.getElementById("copy-promql");
+                btn.textContent = "Copied!";
+                setTimeout(function() { btn.textContent = "Copy"; }, 1500);
+            });
+        });
+    </script>
+</body>
+</html>

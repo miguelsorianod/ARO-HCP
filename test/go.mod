@@ -10,6 +10,7 @@ require (
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/config v0.0.0-20260324125451-f78af490048c
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260324125451-f78af490048c
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/kusto/armkusto/v2 v2.3.0

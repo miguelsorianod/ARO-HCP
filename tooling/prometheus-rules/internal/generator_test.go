@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups"
 )
 
 func TestNewOptions(t *testing.T) {
@@ -520,12 +520,12 @@ func TestOptionsGenerate(t *testing.T) {
 }
 
 func TestWriteGroups(t *testing.T) {
-	group := armalertsmanagement.PrometheusRuleGroupResource{
+	group := armprometheusrulegroups.PrometheusRuleGroupResource{
 		Name: ptr.To("test-group"),
-		Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
+		Properties: &armprometheusrulegroups.PrometheusRuleGroupProperties{
 			Interval: ptr.To("PT30S"),
 			Enabled:  ptr.To(true),
-			Rules: []*armalertsmanagement.PrometheusRule{
+			Rules: []*armprometheusrulegroups.PrometheusRule{
 				{
 					Alert:   ptr.To("TestAlert"),
 					Enabled: ptr.To(true),

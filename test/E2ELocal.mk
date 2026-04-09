@@ -4,8 +4,13 @@ DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 -include ../setup-templatize-env.mk
 -include ../tooling/hcpctl/Variables.mk
+include ../tooling/templatize/Makefile
 include Makefile
 
+DEPLOY_ENV ?= pers
+CONFIG_FILE ?= ../config/config.yaml
+DEV_SETTINGS_FILE ?= ../tooling/templatize/settings.yaml
+ARO_HCP_CLOUD ?= dev
 LOCAL_PORT ?= 8443
 AROHCP_ENV ?= development
 CUSTOMER_SUBSCRIPTION ?= $$(az account show --output tsv --query 'name')
@@ -24,6 +29,28 @@ e2e-local/pf/run-test: $(HCPCTL)
 	HCPCTL=$(HCPCTL) ../hack/run-with-port-forward.sh "${SVC_CLUSTER}" "aro-hcp/aro-hcp-frontend/$(LOCAL_PORT)/8443" \
 		$(MAKE) -C $(DIR) -f $(THIS) e2e-local/run-test SKIP_CERT_VERIFICATION=true FRONTEND_ADDRESS=http://localhost:$(LOCAL_PORT)
 .PHONY: e2e-local/pf/run-test
+
+OBSERVABILITY_OUTPUT ?= $(shell mktemp -d)
+OBSERVABILITY_RENDERED_CONFIG := $(shell mktemp)
+
+e2e-local/gather-observability: $(ARO_HCP_TESTS) $(TEMPLATIZE)
+	$(TEMPLATIZE) configuration render \
+	  --service-config-file $(CONFIG_FILE) \
+	  --skip-schema-validation \
+	  --cloud $(ARO_HCP_CLOUD) \
+	  --environment $(DEPLOY_ENV) \
+	  --dev-settings-file $(DEV_SETTINGS_FILE) \
+	  --output "$(OBSERVABILITY_RENDERED_CONFIG)"
+	mkdir -p $(OBSERVABILITY_OUTPUT)
+	$(ARO_HCP_TESTS) gather-observability \
+		--rendered-config $(OBSERVABILITY_RENDERED_CONFIG) \
+		--subscription-id "$$(az account show --query id -o tsv)" \
+		--output $(OBSERVABILITY_OUTPUT) \
+		--severity-threshold Sev3 \
+		--start-time-fallback "$$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)" \
+		--queries-config $(DIR)/cmd/aro-hcp-tests/gather-observability/queries.yaml
+	@echo "Observability artifacts written to $(OBSERVABILITY_OUTPUT)"
+.PHONY: e2e-local/gather-observability
 
 .e2e-local/setup:
 	SUBSCRIPTION_ID="$$(az account show --query id --output tsv)"; \

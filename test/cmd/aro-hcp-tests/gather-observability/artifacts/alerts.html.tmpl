@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Azure Monitor Alerts</title>
+  <meta name="description" content="Azure Monitor alerts fired during e2e test run.">
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
+  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
+  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" type="text/css" href="/static/spyglass/spyglass.css">
+  <style>
+    body {
+        background-color: #000;
+        color: #fff;
+        font-family: 'Roboto', sans-serif;
+        margin: 16px;
+    }
+    h2 {
+        color: #4E9AF1;
+        margin-bottom: 8px;
+    }
+    .summary {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 12px 0 20px 0;
+    }
+    .badge {
+        display: inline-block;
+        padding: 6px 16px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .severity-critical { background-color: #b71c1c; }
+    .severity-error    { background-color: #d84315; }
+    .severity-warning  { background-color: #f57f17; color: #000; }
+    .severity-info     { background-color: #1565c0; }
+    .severity-verbose  { background-color: #424242; }
+    .meta {
+        color: #aaa;
+        font-size: 13px;
+        margin-bottom: 16px;
+    }
+    .meta span {
+        margin-right: 20px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+    th, td {
+        padding: 10px 12px;
+        text-align: left;
+        border: 1px solid #333;
+    }
+    th {
+        background-color: #222;
+        font-weight: bold;
+    }
+    td.severity-critical { color: #ff5252; font-weight: bold; }
+    td.severity-error    { color: #ff8a65; font-weight: bold; }
+    td.severity-warning  { color: #fdd835; font-weight: bold; }
+    td.severity-info     { color: #64b5f6; }
+    td.severity-verbose  { color: #9e9e9e; }
+    .state-new        { color: #ff5252; }
+    .state-acknowledged { color: #fdd835; }
+    .state-closed     { color: #66bb6a; }
+    .condition-fired  { color: #ff5252; font-weight: bold; }
+    .condition-resolved { color: #66bb6a; }
+    .no-alerts {
+        color: #66bb6a;
+        font-size: 18px;
+        padding: 20px;
+        text-align: center;
+    }
+    .description {
+        max-width: 400px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Azure Monitor Alerts</h2>
+
+  <div class="meta">
+    <span>Time window: {{.TimeWindow.Start}} &mdash; {{.TimeWindow.End}}</span>
+    <span>Scope: {{.Scope}}</span>
+  </div>
+
+  {{if .HasAlerts}}
+  <div class="summary">
+    {{range $sev, $count := .SeverityCounts}}
+    <span class="badge {{severityClass $sev}}">{{$sev}}: {{$count}}</span>
+    {{end}}
+  </div>
+
+  <h2>Alert Details</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Severity</th>
+        <th>State</th>
+        <th>Condition</th>
+        <th>Fired At</th>
+        <th>Resolved At</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Alerts}}
+      <tr>
+        <td>{{truncate .Name 60}}</td>
+        <td class="{{severityClass .Severity}}">{{.Severity}}</td>
+        <td>{{.State}}</td>
+        <td class="{{conditionClass .Condition}}">{{.Condition}}</td>
+        <td>{{formatTime .FiredAt}}</td>
+        <td>{{formatTime .ResolvedAt}}</td>
+        <td class="description" title="{{.Description}}">{{truncate .Description 80}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  {{else}}
+  <div class="no-alerts">No alerts fired during the test window.</div>
+  {{end}}
+
+  <!-- workaround for spyglass cutting off page bottoms -->
+  <div style="height: 20px;"></div>
+</body>
+</html>

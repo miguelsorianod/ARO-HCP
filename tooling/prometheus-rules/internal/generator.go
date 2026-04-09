@@ -35,7 +35,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups"
 )
 
 var defaultEvaluationInterval = "1m"
@@ -337,9 +337,9 @@ param location string = resourceGroup().location
 					group.Interval = monitoringv1.DurationPointer(irf.DefaultEvaluationInterval)
 				}
 			}
-			armGroup := armalertsmanagement.PrometheusRuleGroupResource{
+			armGroup := armprometheusrulegroups.PrometheusRuleGroupResource{
 				Name: ptr.To(group.Name),
-				Properties: &armalertsmanagement.PrometheusRuleGroupProperties{
+				Properties: &armprometheusrulegroups.PrometheusRuleGroupProperties{
 					Interval: parseToAzureDurationString(group.Interval),
 					Enabled:  ptr.To(true),
 				},
@@ -405,7 +405,7 @@ param location string = resourceGroup().location
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
-					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
+					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Alert:       ptr.To(rule.Alert),
 						Enabled:     ptr.To(true),
 						Labels:      labels,
@@ -419,7 +419,7 @@ param location string = resourceGroup().location
 						Severity: severityFor(labels, o.forceInfoSeverity),
 					})
 				} else if rule.Record != "" && isRecordingRulesFile {
-					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armalertsmanagement.PrometheusRule{
+					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Record:  ptr.To(rule.Record),
 						Enabled: ptr.To(true),
 						Labels:  labels,
@@ -459,7 +459,7 @@ param location string = resourceGroup().location
 // 2. the best reference for which IcM fields exist and how to set them: https://dev.azure.com/msazure/One/_git/EngSys-MDA-GenevaDocs?path=/documentation/metrics/Prometheus/PromIcMConnectorsetup.md&_a=preview&version=GBmaster
 // 3. the official top-level document: https://eng.ms/docs/products/icm/developers/connectors/icmaction#edit-an-azure-monitor-icm-connector-definition-icm-action
 
-func writeAlertGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
+func writeAlertGroups(groups armprometheusrulegroups.PrometheusRuleGroupResource, into io.Writer) error {
 	tmpl, err := template.New("prometheusRuleGroup").Funcs(
 		map[string]any{"contains": strings.Contains},
 	).Parse(`
@@ -522,7 +522,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
 	})
 }
 
-func writeRecordingGroups(groups armalertsmanagement.PrometheusRuleGroupResource, into io.Writer) error {
+func writeRecordingGroups(groups armprometheusrulegroups.PrometheusRuleGroupResource, into io.Writer) error {
 	tmpl, err := template.New("prometheusRecordingRuleGroup").Parse(`
 resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: '{{.groups.Name}}'

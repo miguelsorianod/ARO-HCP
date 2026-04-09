@@ -33,22 +33,9 @@ import (
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
+	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
-
-func setFakeClock(t *testing.T, timestamp string) {
-	t.Helper()
-
-	fakeTime, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil {
-		t.Fatalf("failed to parse fake time: %v", err)
-	}
-
-	localClock = clocktesting.NewFakePassiveClock(fakeTime)
-	t.Cleanup(func() {
-		localClock = clock.RealClock{}
-	})
-}
 
 func decodeQueryFromLinkURL(t *testing.T, linkURL string) string {
 	t.Helper()
@@ -104,8 +91,6 @@ func assertAllServiceLinkQueriesContainTimeWindow(t *testing.T, links []LinkDeta
 }
 
 func TestGeneratedHTML(t *testing.T) {
-	setFakeClock(t, "2022-03-17T19:00:00Z")
-
 	ctx := logr.NewContext(t.Context(), testr.New(t))
 	tmpdir := t.TempDir()
 
@@ -124,6 +109,7 @@ func TestGeneratedHTML(t *testing.T) {
 			MgmtClusterName: "hcp-underlay-prow-usw3j688-mgmt-1",
 			SubscriptionID:  "00000000-0000-0000-0000-000000000000",
 			Kusto:           kusto,
+			Clock:           clocktesting.NewFakePassiveClock(time.Date(2022, 3, 17, 19, 0, 0, 0, time.UTC)),
 			Steps: []pipeline.NodeInfo{
 				{Info: pipeline.ExecutionInfo{
 					StartedAt:  "2022-03-17T17:30:00Z",
@@ -143,8 +129,6 @@ func TestGeneratedHTML(t *testing.T) {
 }
 
 func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
-	setFakeClock(t, "2022-03-17T19:00:00Z")
-
 	ctx := logr.NewContext(t.Context(), testr.New(t))
 	tmpdir := t.TempDir()
 
@@ -163,6 +147,7 @@ func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
 			SvcClusterName:  "hcp-underlay-prow-usw3j688-svc-1",
 			MgmtClusterName: "hcp-underlay-prow-usw3j688-mgmt-1",
 			Kusto:           kusto,
+			Clock:           clocktesting.NewFakePassiveClock(time.Date(2022, 3, 17, 19, 0, 0, 0, time.UTC)),
 		},
 	}
 	err := opts.Run(ctx)
@@ -175,9 +160,7 @@ func TestGeneratedHTMLWithoutStepsUsesTimingFallback(t *testing.T) {
 	testutil.CompareFileWithFixture(t, filepath.Join(tmpdir, "custom-link-tools-commands.html"), testutil.WithSuffix("custom-link-tools-commands-no-steps"))
 }
 
-func TestGetServiceLogLinksUsesClockFallbackWhenNoStepsAndNoTiming(t *testing.T) {
-	setFakeClock(t, "2022-03-17T19:00:00Z")
-
+func TestGetServiceLogLinksWithExplicitTimeWindow(t *testing.T) {
 	kusto := KustoInfo{
 		KustoName:                      "hcp-dev-us-2",
 		KustoRegion:                    "eastus2",
@@ -185,12 +168,12 @@ func TestGetServiceLogLinksUsesClockFallbackWhenNoStepsAndNoTiming(t *testing.T)
 		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
 	}
 
-	tw, err := computeTimeWindow(testr.New(t), nil, nil, nil)
-	if err != nil {
-		t.Fatalf("failed to compute time window: %v", err)
+	tw := timing.TimeWindow{
+		Start: time.Date(2022, 3, 17, 16, 0, 0, 0, time.UTC),
+		End:   time.Date(2022, 3, 17, 19, 30, 0, 0, time.UTC),
 	}
 
-	links, err := getServiceLogLinks(testr.New(t), tw, "svc-cluster", "mgmt-cluster", kusto)
+	links, err := getServiceLogLinks(tw, "svc-cluster", "mgmt-cluster", kusto)
 	if err != nil {
 		t.Fatalf("failed to get service log links: %v", err)
 	}
@@ -198,8 +181,16 @@ func TestGetServiceLogLinksUsesClockFallbackWhenNoStepsAndNoTiming(t *testing.T)
 	assertAllServiceLinkQueriesContainTimeWindow(t, links, "2022-03-17T16:00:00.0000000Z", "2022-03-17T19:30:00.0000000Z")
 }
 
+func TestComputeTimeWindowErrorsWithNoTimingData(t *testing.T) {
+	ctx := logr.NewContext(t.Context(), testr.New(t))
+	_, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected error when no timing data is available")
+	}
+}
+
 func TestGetServiceLogLinksUsesCLIStartFallbackWhenStepsAndTimingUnavailable(t *testing.T) {
-	setFakeClock(t, "2022-03-17T19:00:00Z")
+	ctx := logr.NewContext(t.Context(), testr.New(t))
 
 	startTimeFallback, err := time.Parse(time.RFC3339, "2022-03-17T17:00:00Z")
 	if err != nil {
@@ -213,17 +204,18 @@ func TestGetServiceLogLinksUsesCLIStartFallbackWhenStepsAndTimingUnavailable(t *
 		HostedControlPlaneLogsDatabase: "HostedControlPlaneLogs",
 	}
 
-	tw, err := computeTimeWindow(testr.New(t), nil, nil, &startTimeFallback)
+	fakeClock := clocktesting.NewFakePassiveClock(time.Date(2022, 3, 17, 19, 0, 0, 0, time.UTC))
+	tw, err := timing.ComputeTimeWindow(ctx, fakeClock, nil, nil, &startTimeFallback)
 	if err != nil {
 		t.Fatalf("failed to compute time window: %v", err)
 	}
 
-	links, err := getServiceLogLinks(testr.New(t), tw, "svc-cluster", "mgmt-cluster", kusto)
+	links, err := getServiceLogLinks(tw, "svc-cluster", "mgmt-cluster", kusto)
 	if err != nil {
 		t.Fatalf("failed to get service log links: %v", err)
 	}
 
-	assertAllServiceLinkQueriesContainTimeWindow(t, links, "2022-03-17T17:00:00.0000000Z", "2022-03-17T19:30:00.0000000Z")
+	assertAllServiceLinkQueriesContainTimeWindow(t, links, "2022-03-17T17:00:00.0000000Z", "2022-03-17T19:45:00.0000000Z")
 }
 
 func TestCompleteFailsWithInvalidStartTimeFallback(t *testing.T) {
@@ -257,7 +249,7 @@ kusto:
 		},
 	}
 
-	_, err = validated.Complete(logr.Discard())
+	_, err = validated.Complete(logr.NewContext(t.Context(), testr.New(t)))
 	if err == nil {
 		t.Fatal("expected Complete to fail for invalid --start-time-fallback")
 	}
