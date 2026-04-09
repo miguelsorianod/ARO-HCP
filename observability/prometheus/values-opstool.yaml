@@ -108,8 +108,6 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__dcrRemoteWriteUrl__"
   zoneCount: 1
   maximumStartupDurationSeconds: 360
-  retention: 6h
-  retentionSize: 10GiB
   resources:
     requests:
       cpu: 500m

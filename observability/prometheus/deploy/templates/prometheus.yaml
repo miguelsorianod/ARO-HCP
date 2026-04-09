@@ -1,8 +1,8 @@
 {{- $none := "NONE" -}}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
 {{- $setLimits := or (ne (.Values.prometheusSpec.resources.limits.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.limits.memory | toString) $none) -}}
-apiVersion: monitoring.coreos.com/v1
-kind: Prometheus
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: PrometheusAgent
 metadata:
   name: prometheus
   namespace: '{{ .Release.Namespace }}'
@@ -40,8 +40,6 @@ spec:
             values:
             - infra
   automountServiceAccountToken: true
-  enableAdminAPI: false
-  evaluationInterval: 30s
   hostNetwork: false
   listenLocal: false
   logFormat: logfmt
@@ -58,11 +56,7 @@ spec:
     matchLabels:
       release: arohcp-monitor
   replicas: 1
-  retention: '{{ .Values.prometheusSpec.retention }}'
-  retentionSize: '{{ .Values.prometheusSpec.retentionSize }}'
   routePrefix: /
-  ruleNamespaceSelector: {}
-  ruleSelector: {}
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
     matchLabels:
@@ -106,8 +100,6 @@ spec:
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
-  tsdb:
-    outOfOrderTimeWindow: 0s
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'
@@ -130,7 +122,7 @@ spec:
     writeRelabelConfigs:
       - sourceLabels: [namespace]
         regex: '^ocm-{{ .Values.environment }}.*'
-        action: drop 
+        action: drop
     {{- end -}}
   {{- if ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE" }}
   - url: '{{ .Values.prometheusSpec.hcpRemoteWriteUrl }}'
