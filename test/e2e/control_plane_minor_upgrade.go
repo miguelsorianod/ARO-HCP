@@ -26,6 +26,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
@@ -41,7 +42,6 @@ var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
 		func(ctx context.Context, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
-
 			targetVer := api.Must(semver.ParseTolerant(targetMinor))
 
 			var previousMinor semver.Version
@@ -140,6 +140,12 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred())
 
+			Expect(ctx.Err()).NotTo(HaveOccurred())
+			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred())
+			preUpgradeKubeAPIServerVersion, err := kubeClient.Discovery().ServerVersion()
+			Expect(err).NotTo(HaveOccurred())
+
 			By(fmt.Sprintf("triggering control plane y-stream upgrade to %s (target minor %s)", desiredVersion,
 				targetVer.String()))
 			update := hcpsdk20240610preview.HcpOpenShiftClusterUpdate{
@@ -156,6 +162,7 @@ var _ = Describe("Customer", func() {
 			By("verifying control plane reached desired version and cluster remains viable")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig,
+					verifiers.VerifyKubeAPIServerServerVersionUpgraded(preUpgradeKubeAPIServerVersion),
 					verifiers.VerifyHostedControlPlaneYStreamUpgrade(
 						previousMinor.String(),
 						targetVer.String()))
