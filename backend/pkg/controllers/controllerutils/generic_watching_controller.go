@@ -91,6 +91,7 @@ func (c *genericWatchingController[T]) Run(ctx context.Context, threadiness int)
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
 
+	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
@@ -175,6 +176,7 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAdd(resourceID *azcorear
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	logger = AddLoggerValues(logger, key)
 	ctx := logr.NewContext(context.TODO(), logger)
+	ctx = utils.ContextWithControllerName(ctx, c.name)
 
 	if changed {
 		// when state has changed, fire immediately

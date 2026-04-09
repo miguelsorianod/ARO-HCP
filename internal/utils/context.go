@@ -43,6 +43,8 @@ func (c contextKey) String() string {
 	switch c {
 	case contextKeyResourceID:
 		return "resourceID"
+	case contextKeyControllerName:
+		return "controllerName"
 	}
 	return "<unknown>"
 }
@@ -50,6 +52,7 @@ func (c contextKey) String() string {
 const (
 	// Keys for request-scoped data in http.Request contexts
 	contextKeyResourceID contextKey = iota
+	contextKeyControllerName
 )
 
 func ContextWithLogger(ctx context.Context, logger logr.Logger) context.Context {
@@ -81,6 +84,22 @@ func ResourceIDFromContext(ctx context.Context) (*azcorearm.ResourceID, error) {
 		return resourceID, err
 	}
 	return resourceID, nil
+}
+
+func ContextWithControllerName(ctx context.Context, controllerName string) context.Context {
+	return context.WithValue(ctx, contextKeyControllerName, controllerName)
+}
+
+func ControllerNameFromContext(ctx context.Context) (string, bool) {
+	uncastRet := ctx.Value(contextKeyControllerName)
+	if uncastRet == nil {
+		return "", false
+	}
+	ret, ok := uncastRet.(string)
+	if !ok {
+		return "", false
+	}
+	return ret, true
 }
 
 // LogValues is a slice of key/value pairs for use with logger.WithValues.

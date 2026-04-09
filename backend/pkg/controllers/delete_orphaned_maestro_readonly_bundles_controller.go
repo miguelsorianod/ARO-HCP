@@ -314,6 +314,7 @@ func (c *deleteOrphanedMaestroReadonlyBundles) Run(ctx context.Context, threadin
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
 
+	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
