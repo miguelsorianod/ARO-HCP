@@ -483,6 +483,12 @@ defaults:
             registry: arohcpsvcdev.azurecr.io
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
             sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd # v1.6.9 (2026-03-19 15:52)
+      thanos:
+        image:
+          registry: arohcpsvcdev.azurecr.io
+          repository: thanos/thanos
+          tag: v0.41.0
+          sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
   # MGMT cluster specifics
   mgmt:
     hcpBackups:
@@ -601,6 +607,12 @@ defaults:
             registry: arohcpsvcdev.azurecr.io
             repository: k8s-cache/ingress-nginx/kube-webhook-certgen
             sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd # v1.6.9 (2026-03-19 15:52)
+      thanos:
+        image:
+          registry: arohcpsvcdev.azurecr.io
+          repository: thanos/thanos
+          tag: v0.41.0
+          sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
   # Backend
   backend:
     image:

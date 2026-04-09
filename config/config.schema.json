@@ -571,6 +571,30 @@
         "digest"
       ]
     },
+    "containerImageTagDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string",
+          "pattern": "^$|^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "repository",
+        "tag",
+        "sha"
+      ]
+    },
     "containerImageSha": {
       "type": "object",
       "additionalProperties": false,
@@ -782,6 +806,15 @@
                   "$ref": "#/definitions/containerImageSha"
                 }
               }
+            }
+          }
+        },
+        "thanos": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "$ref": "#/definitions/containerImageTagDigest"
             }
           }
         }

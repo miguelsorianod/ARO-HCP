@@ -122,6 +122,11 @@ module svcPublicCaching '../modules/acr/public-cache.bicep' = {
         sourceRepo: 'registry.k8s.io/ingress-nginx/*'
         targetRepo: 'k8s-cache/ingress-nginx/*'
       }
+      {
+        ruleName: 'quay-thanos'
+        sourceRepo: 'quay.io/thanos/*'
+        targetRepo: 'thanos/*'
+      }
     ]
   }
   dependsOn: [

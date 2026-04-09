@@ -39,6 +39,11 @@ kube-prometheus-stack:
       registry: "{{ .svc.prometheus.prometheusOperator.image.registry }}"
       repository: "{{ .svc.prometheus.prometheusOperator.image.repository }}"
       sha: "{{ .svc.prometheus.prometheusOperator.image.sha }}"
+    thanosImage:
+      registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+      repository: "{{ .svc.prometheus.thanos.image.repository }}"
+      tag: "{{ .svc.prometheus.thanos.image.tag }}"
+      sha: "{{ .svc.prometheus.thanos.image.sha }}"
     prometheusConfigReloader:
       image:
         registry: "{{ .svc.prometheus.prometheusConfigReloader.image.registry }}"
