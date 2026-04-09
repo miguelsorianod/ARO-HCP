@@ -22,10 +22,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "embed"
 
 	"sigs.k8s.io/yaml"
 
@@ -68,11 +69,14 @@ type PrometheusResult struct {
 	Values [][]any           `json:"values"` // each element is [unix_timestamp_float, "string_value"]
 }
 
-func loadQueriesConfig(path string) (*QueriesConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read queries config %s: %w", path, err)
-	}
+//go:embed queries.yaml
+var defaultQueriesYAML []byte
+
+func loadQueriesConfig() (*QueriesConfig, error) {
+	return parseQueriesConfig(defaultQueriesYAML)
+}
+
+func parseQueriesConfig(data []byte) (*QueriesConfig, error) {
 	var cfg QueriesConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse queries config: %w", err)

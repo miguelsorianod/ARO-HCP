@@ -17,8 +17,6 @@ package gatherobservability
 import (
 	"encoding/json"
 	"math"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -497,13 +495,7 @@ func TestLoadQueriesConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tmpDir := t.TempDir()
-			cfgPath := filepath.Join(tmpDir, "queries.yaml")
-			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
-				t.Fatalf("failed to write temp config: %v", err)
-			}
-
-			cfg, err := loadQueriesConfig(cfgPath)
+			cfg, err := parseQueriesConfig([]byte(tt.yaml))
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
@@ -523,10 +515,13 @@ func TestLoadQueriesConfig(t *testing.T) {
 	}
 }
 
-func TestLoadQueriesConfigFileNotFound(t *testing.T) {
+func TestLoadQueriesConfigEmbedded(t *testing.T) {
 	t.Parallel()
-	_, err := loadQueriesConfig("/nonexistent/path/queries.yaml")
-	if err == nil {
-		t.Fatal("expected error for missing file, got nil")
+	cfg, err := loadQueriesConfig()
+	if err != nil {
+		t.Fatalf("embedded queries.yaml should parse without error: %v", err)
+	}
+	if len(cfg.Queries) == 0 {
+		t.Fatal("embedded queries.yaml should contain at least one query")
 	}
 }

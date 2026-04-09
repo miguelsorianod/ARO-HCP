@@ -47,8 +47,7 @@ e2e-local/gather-observability: $(ARO_HCP_TESTS) $(TEMPLATIZE)
 		--subscription-id "$$(az account show --query id -o tsv)" \
 		--output $(OBSERVABILITY_OUTPUT) \
 		--severity-threshold Sev3 \
-		--start-time-fallback "$$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)" \
-		--queries-config $(DIR)/cmd/aro-hcp-tests/gather-observability/queries.yaml
+		--start-time-fallback "$$(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)"
 	@echo "Observability artifacts written to $(OBSERVABILITY_OUTPUT)"
 .PHONY: e2e-local/gather-observability
 
