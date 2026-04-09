@@ -8,6 +8,7 @@ prometheusRules:
   - ../admin/alerts/admin-prometheusRule.yaml
   - ../observability/alerts/arobit-prometheusRule.yaml
   - alerts/service-tag-public-ip-usage.yaml
+  - ../observability/alerts/HCPdeletionStuck-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
   prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
