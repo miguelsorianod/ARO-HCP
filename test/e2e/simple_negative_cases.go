@@ -174,17 +174,11 @@ var _ = Describe("Customer", func() {
 			invalidNodePoolVersion := fmt.Sprintf("%d.%d.0", clusterVersion.Major, clusterVersion.Minor+1) // +1 y-stream, z set to 0
 
 			npForVersionUpdate, err := nodePoolClient.Get(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, nil)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to get nodepool for version update: %w", err))
-			} else if npForVersionUpdate.Properties == nil {
-				errs = append(errs, fmt.Errorf("nodepool properties are nil for version update"))
-			} else if npForVersionUpdate.Properties.Version == nil {
-				errs = append(errs, fmt.Errorf("nodepool version is nil for version update"))
-			} else {
-				npForVersionUpdate.Properties.Version.ID = &invalidNodePoolVersion
-				_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, npForVersionUpdate.NodePool, nil)
-				checkExpectedError(&errs, "invalid node pool version update", err, "node pool version cannot exceed control plane")
-			}
+			Expect(err).ToNot(HaveOccurred())
+
+			npForVersionUpdate.Properties.Version.ID = &invalidNodePoolVersion
+			_, err = nodePoolClient.BeginCreateOrUpdate(ctx, *resourceGroup.Name, clusterParams.ClusterName, nodePoolParams.NodePoolName, npForVersionUpdate.NodePool, nil)
+			checkExpectedError(&errs, "invalid node pool version update", err, "node pool version cannot exceed control plane")
 
 			// TEST CASE: ARO-24877
 			By("attempting to update immutable platform profile fields")
@@ -244,6 +238,8 @@ var _ = Describe("Customer", func() {
 })
 
 func checkExpectedError(errs *[]error, operation string, err error, expectedErrorKeywords string) {
+	GinkgoLogr.Error(err, operation)
+
 	if err == nil {
 		*errs = append(*errs, fmt.Errorf("%s: expected error but none occurred", operation))
 		return
@@ -254,7 +250,5 @@ func checkExpectedError(errs *[]error, operation string, err error, expectedErro
 
 	if matched, _ := regexp.MatchString(pattern, lowerError); !matched {
 		*errs = append(*errs, fmt.Errorf("%s: expected error containing keywords '%s', got: %s", operation, expectedErrorKeywords, err.Error()))
-	} else {
-		GinkgoLogr.Info(fmt.Sprintf("%s: got expected error: %s", operation, err.Error()))
 	}
 }
