@@ -482,12 +482,11 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
 		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
 		if err != nil {
-			return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+			if len(managedResourceGroups) > 0 {
+				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+			}
+			return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 		}
-	}
-
-	if len(managedResourceGroups) > 0 {
-		return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v", len(managedResourceGroups), resourceGroupName, managedResourceGroups)
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
 	}
