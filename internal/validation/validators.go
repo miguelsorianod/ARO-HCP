@@ -248,6 +248,9 @@ var (
 	imageDigestMirroredRegistry            = `^((?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])(?:(?:\.(?:[a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(?::[0-9]+)?)(?:(?:/[a-z0-9]+(?:(?:(?:[._]|__|[-]*)[a-z0-9]+)+)?)+)?$`
 	imageDigestMirroredRegistryRegex       = regexp.MustCompile(imageDigestMirroredRegistry)
 	imageDigestMirroredRegistryErrorString = `(must be a valid mirrored image registry)`
+
+	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
+	azureVMNameRegex = regexp.MustCompile(azureVMName)
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -274,6 +277,10 @@ func ValidateUUID(_ context.Context, _ operation.Operation, fldPath *field.Path,
 		return field.ErrorList{field.Invalid(fldPath, *value, err.Error())}
 	}
 	return nil
+}
+
+func IsValidAzureVMName(name string) bool {
+	return azureVMNameRegex.MatchString(name)
 }
 
 func CIDRv4(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
