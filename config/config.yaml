@@ -1153,7 +1153,7 @@ clouds:
           accessMode: 'Learning'
         istio:
           targetVersion: "asm-1-26"
-          versions: "asm-1-26"
+          versions: "asm-1-26,asm-1-28"
         aks:
           etcd:
             softDelete: false
@@ -1428,6 +1428,9 @@ clouds:
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            istio:
+              targetVersion: "asm-1-28"
+              versions: "asm-1-28"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
@@ -1601,6 +1604,9 @@ clouds:
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
+            istio:
+              targetVersion: "asm-1-28"
+              versions: "asm-1-28"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
               userAgentPool:
