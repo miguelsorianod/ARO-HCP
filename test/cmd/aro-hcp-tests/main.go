@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	// If using ginkgo, import your tests here
 	_ "github.com/Azure/ARO-HCP/test/e2e"
@@ -108,6 +109,7 @@ func setupCli() *cobra.Command {
 	})
 
 	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
+	prodTestTimeout := 150 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel",
 		Qualifiers: []string{
@@ -117,6 +119,7 @@ func setupCli() *cobra.Command {
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=15
 		Parallelism: 19,
+		TestTimeout: &prodTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel/slow",
@@ -127,6 +130,7 @@ func setupCli() *cobra.Command {
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
 		// LEASED_MSI_CONTAINERS=15
 		Parallelism: 19,
+		TestTimeout: &prodTestTimeout,
 	})
 
 	ext.AddSuite(e.Suite{
