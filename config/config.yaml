@@ -842,6 +842,7 @@ defaults:
       zoneRedundantMode: 'Auto'
       backupRetentionDays: 7
       geoRedundantBackup: false
+      enhancedMetricsEnabled: false
       containerizedDb:
         image: ""
         pvcCapacity: ""
@@ -911,6 +912,7 @@ defaults:
       zoneRedundantMode: 'Auto'
       backupRetentionDays: 7
       geoRedundantBackup: false
+      enhancedMetricsEnabled: false
       containerizedDb:
         image: ""
         pvcCapacity: ""
@@ -1106,12 +1108,16 @@ clouds:
       maestro:
         certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
+        postgres:
+          enhancedMetricsEnabled: true
       # Cluster Service
       clustersService:
         azureOperatorsManagedIdentities:
           roleSetName: dev
         azureRuntimeConfig:
           tlsCertificatesIssuer: Self
+        postgres:
+          enhancedMetricsEnabled: true
       # Hypershift Operator
       hypershift:
         limitClusterSizes: true

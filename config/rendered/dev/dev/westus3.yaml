@@ -208,6 +208,7 @@ clustersService:
       pvcCapacity: ""
     databaseName: clusters-service
     deploy: true
+    enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-dev-dbcs-usw3
@@ -508,6 +509,7 @@ maestro:
       pvcCapacity: ""
     databaseName: maestro
     deploy: true
+    enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-dev-dbmaestro-usw3

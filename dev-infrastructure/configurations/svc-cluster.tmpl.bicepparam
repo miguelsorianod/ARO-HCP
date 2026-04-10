@@ -78,6 +78,7 @@ param maestroPostgresZoneRedundantMode = '{{ .maestro.postgres.zoneRedundantMode
 param maestroPostgresBackupRetentionDays = {{ .maestro.postgres.backupRetentionDays }}
 param maestroPostgresGeoRedundantBackup = {{ .maestro.postgres.geoRedundantBackup }}
 param maestroPostgresPrivate = {{ .maestro.postgres.private }}
+param maestroPostgresEnhancedMetricsEnabled = {{ .maestro.postgres.enhancedMetricsEnabled }}
 
 param csPostgresDeploy = {{ .clustersService.postgres.deploy }}
 param csPostgresZoneRedundantMode = '{{ .clustersService.postgres.zoneRedundantMode }}'
@@ -88,6 +89,7 @@ param csPostgresServerMinTLSVersion = '{{ .clustersService.postgres.minTLSVersio
 param csPostgresServerVersion = '{{ .clustersService.postgres.serverVersion }}'
 param csPostgresServerStorageSizeGB = {{ .clustersService.postgres.serverStorageSizeGB }}
 param csPostgresDatabaseName = '{{ .clustersService.postgres.databaseName }}'
+param csPostgresEnhancedMetricsEnabled = {{ .clustersService.postgres.enhancedMetricsEnabled }}
 param clusterServicePostgresPrivate = {{ .clustersService.postgres.private }}
 param csMIName = '{{ .clustersService.managedIdentityName }}'
 param csNamespace = '{{ .clustersService.k8s.namespace }}'

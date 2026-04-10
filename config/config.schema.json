@@ -862,6 +862,10 @@
           "type": "boolean",
           "description": "Enable geo-redundant backups for the PostgreSQL server."
         },
+        "enhancedMetricsEnabled": {
+          "type": "boolean",
+          "description": "Enable enhanced metrics for the PostgreSQL server."
+        },
         "containerizedDb": {
           "type": "object",
           "additionalProperties": false,
