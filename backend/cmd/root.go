@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/signal"
 	"github.com/Azure/ARO-HCP/internal/tracing"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -275,6 +276,10 @@ func (f *BackendRootCmdFlags) validate() error {
 		}
 	}
 
+	if f.AzureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNameDev) && f.AzureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNamePublic) {
+		return utils.TrackError(fmt.Errorf("--azure-cluster-scoped-identities-role-set-name must be either '%s' or '%s'", internalazure.RoleDefinitionConfigSetNameDev, internalazure.RoleDefinitionConfigSetNamePublic))
+	}
+
 	return nil
 }
 
@@ -374,6 +379,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create clusters service client: %w", err))
 	}
 
+	clusterScopedIdentitiesConfig := internalazure.NewClusterScopedIdentitiesConfig(internalazure.RoleDefinitionConfigSetName(f.AzureClusterScopedIdentitiesRoleSetName))
+
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
@@ -391,6 +398,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
 		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
 	}
 
 	return backendOptions, nil
