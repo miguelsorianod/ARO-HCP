@@ -541,26 +541,24 @@ func TestDeploymentPreflight(t *testing.T) {
 
 func TestRequestAdminCredential(t *testing.T) {
 	type testCase struct {
-		name                     string
-		clusterProvisioningState arm.ProvisioningState
-		revokeCredentialsStatus  arm.ProvisioningState
-		statusCode               int
+		name                         string
+		clusterProvisioningState     arm.ProvisioningState
+		revokeCredentialsOperationID string
+		statusCode                   int
 	}
 
 	tests := []testCase{
 		{
-			name:                     "Request conflict: credentials revoking",
-			clusterProvisioningState: arm.ProvisioningStateSucceeded,
-			revokeCredentialsStatus:  arm.ProvisioningStateDeleting,
-			statusCode:               http.StatusConflict,
+			name:                         "Request conflict: credentials revoking",
+			clusterProvisioningState:     arm.ProvisioningStateSucceeded,
+			revokeCredentialsOperationID: "revocation-in-progress",
+			statusCode:                   http.StatusConflict,
 		},
 	}
 
 	for clusterProvisioningState := range arm.ListProvisioningStates() {
 		test := testCase{
-			// Previously completed revocation does not interfere.
 			clusterProvisioningState: clusterProvisioningState,
-			revokeCredentialsStatus:  arm.ProvisioningStateSucceeded,
 		}
 		if clusterProvisioningState.IsTerminal() {
 			test.name = "Request accepted: cluster state=" + string(clusterProvisioningState)
@@ -606,15 +604,16 @@ func TestRequestAdminCredential(t *testing.T) {
 					},
 				},
 				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ProvisioningState: test.clusterProvisioningState,
-					ClusterServiceID:  clusterInternalID,
+					ProvisioningState:            test.clusterProvisioningState,
+					ClusterServiceID:             clusterInternalID,
+					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
 				},
 			}
 			_, err := mockDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 
 			// Add active revoke operation if needed
-			if test.clusterProvisioningState.IsTerminal() && !test.revokeCredentialsStatus.IsTerminal() {
+			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) > 0 {
 				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				revokeOp := &api.Operation{
@@ -626,14 +625,14 @@ func TestRequestAdminCredential(t *testing.T) {
 					Request:     database.OperationRequestRevokeCredentials,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
-					Status:      test.revokeCredentialsStatus,
+					Status:      arm.ProvisioningStateDeleting,
 				}
 				_, err := mockDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, revokeOp, nil)
 				require.NoError(t, err)
 			}
 
 			// Set up cluster service expectations for success case
-			if test.clusterProvisioningState.IsTerminal() && test.revokeCredentialsStatus.IsTerminal() {
+			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) == 0 {
 				mockCSClient.EXPECT().
 					PostBreakGlassCredential(gomock.Any(), clusterInternalID).
 					Return(cmv1.NewBreakGlassCredential().
@@ -661,26 +660,24 @@ func TestRequestAdminCredential(t *testing.T) {
 
 func TestRevokeCredentials(t *testing.T) {
 	type testCase struct {
-		name                     string
-		clusterProvisioningState arm.ProvisioningState
-		revokeCredentialsStatus  arm.ProvisioningState
-		statusCode               int
+		name                         string
+		clusterProvisioningState     arm.ProvisioningState
+		revokeCredentialsOperationID string
+		statusCode                   int
 	}
 
 	tests := []testCase{
 		{
-			name:                     "Request conflict: credentials revoking",
-			clusterProvisioningState: arm.ProvisioningStateSucceeded,
-			revokeCredentialsStatus:  arm.ProvisioningStateDeleting,
-			statusCode:               http.StatusConflict,
+			name:                         "Request conflict: credentials revoking",
+			clusterProvisioningState:     arm.ProvisioningStateSucceeded,
+			revokeCredentialsOperationID: "revocation-in-progress",
+			statusCode:                   http.StatusConflict,
 		},
 	}
 
 	for clusterProvisioningState := range arm.ListProvisioningStates() {
 		test := testCase{
-			// Previously completed revocation does not interfere.
 			clusterProvisioningState: clusterProvisioningState,
-			revokeCredentialsStatus:  arm.ProvisioningStateSucceeded,
 		}
 		if clusterProvisioningState.IsTerminal() {
 			test.name = "Request accepted: cluster state=" + string(clusterProvisioningState)
@@ -726,15 +723,16 @@ func TestRevokeCredentials(t *testing.T) {
 					},
 				},
 				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ProvisioningState: test.clusterProvisioningState,
-					ClusterServiceID:  clusterInternalID,
+					ProvisioningState:            test.clusterProvisioningState,
+					ClusterServiceID:             clusterInternalID,
+					RevokeCredentialsOperationID: test.revokeCredentialsOperationID,
 				},
 			}
 			_, err := mockDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).Create(ctx, cluster, nil)
 			require.NoError(t, err)
 
 			// Add active revoke operation if needed
-			if test.clusterProvisioningState.IsTerminal() && !test.revokeCredentialsStatus.IsTerminal() {
+			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) > 0 {
 				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				revokeOp := &api.Operation{
@@ -746,14 +744,14 @@ func TestRevokeCredentials(t *testing.T) {
 					Request:     database.OperationRequestRevokeCredentials,
 					ExternalID:  clusterResourceID,
 					InternalID:  clusterInternalID,
-					Status:      test.revokeCredentialsStatus,
+					Status:      arm.ProvisioningStateDeleting,
 				}
 				_, err := mockDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, revokeOp, nil)
 				require.NoError(t, err)
 			}
 
 			// Add active request credential operation (will be cancelled) for success case
-			if test.clusterProvisioningState.IsTerminal() && test.revokeCredentialsStatus.IsTerminal() {
+			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) == 0 {
 				operationID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + uuid.New().String()))
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				requestOp := &api.Operation{
@@ -772,7 +770,7 @@ func TestRevokeCredentials(t *testing.T) {
 			}
 
 			// Set up cluster service expectations for success case
-			if test.clusterProvisioningState.IsTerminal() && test.revokeCredentialsStatus.IsTerminal() {
+			if test.clusterProvisioningState.IsTerminal() && len(test.revokeCredentialsOperationID) == 0 {
 				mockCSClient.EXPECT().
 					DeleteBreakGlassCredentials(gomock.Any(), clusterInternalID).
 					Return(nil)

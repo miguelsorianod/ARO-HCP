@@ -123,6 +123,32 @@ func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Conte
 		return nil
 	}
 
+	// FIXME May want a version of patchOperation that acts on a transaction
+	//       so we can group these two writes together. For now, if the cluster
+	//       replace fails we'll just retry later since the operation status
+	//       will remain non-terminal.
+
+	dbClient := opsync.cosmosClient.HCPClusters(oldOperation.ExternalID.SubscriptionID, oldOperation.ExternalID.ResourceGroupName)
+	cluster, err := dbClient.Get(ctx, oldOperation.ExternalID.Name)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	// If the controller successfully clears the RevokeCredentialsOperationID field
+	// in the cluster document but fails to update the operation document, then the
+	// frontend is free to start a new RevokeCredentials operation, and may well do
+	// so before the failed operation update is retried. Account for this by making
+	// sure the field value still matches this operation's ID before clearing it.
+	if cluster.ServiceProviderProperties.RevokeCredentialsOperationID == oldOperation.OperationID.Name {
+		logger.Info("clearing RevokeCredentialsOperationID from cluster")
+		cluster.ServiceProviderProperties.RevokeCredentialsOperationID = ""
+		_, err = dbClient.Replace(ctx, cluster, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+	}
+
+	logger.Info("updating status")
 	err = patchOperation(ctx, opsync.cosmosClient, oldOperation, newOperationStatus, newOperationError, postAsyncNotificationFn(opsync.notificationClient))
 	if err != nil {
 		return utils.TrackError(err)
