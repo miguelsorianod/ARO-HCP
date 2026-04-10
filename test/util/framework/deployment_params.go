@@ -41,10 +41,10 @@ const (
 	RBACScopeResource      RBACScope = "resource"
 
 	// Default OpenShift channel group, version, and node pool version for the E2E test
-	DefaultOCPChannelGroup         = "stable"
+	DefaultOCPChannelGroup         = "candidate"
 	DefaultOCPVersionId            = "4.20"
 	DefaultOCPNodePoolVersionId    = "4.20.15"
-	DefaultOCPNodePoolChannelGroup = "stable"
+	DefaultOCPNodePoolChannelGroup = "candidate"
 
 	DefaultPodCIDR      = "10.128.0.0/14"
 	DefaultServiceCIDR  = "172.30.0.0/16"

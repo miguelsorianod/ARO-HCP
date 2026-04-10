@@ -12,23 +12,23 @@ Customer should be able to create an HCP cluster and manage pull secrets
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.19
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 4.20
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 4.21
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 4.22
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 4.23
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.0
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.1
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.2
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.3
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.4
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.5
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.6
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.7
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.8
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.9
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.10
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.11
-ARO-HCP should be able to perform a control plane and node pool install with OCP stable channel for 5.12
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.20
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.21
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.22
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.23
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.0
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.1
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.2
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.3
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.4
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.5
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.6
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.7
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.8
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.9
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.10
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.11
+ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.12
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.19
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.20
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.21
