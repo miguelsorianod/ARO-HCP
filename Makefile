@@ -62,7 +62,7 @@ verify-json-format: $(JQ)
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize
 .PHONY: verify
 
 verify-yamlfmt: yamlfmt
@@ -334,6 +334,10 @@ update-helm-fixtures:
 test-helm-fixtures:
 	$(MAKE) -C tooling/helmtest test
 .PHONY: test-helmcharts
+
+verify-materialize:
+	$(MAKE) -C config/ detect-change
+.PHONY: verify-materialize
 
 #
 # Generated SDKs

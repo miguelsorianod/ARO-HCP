@@ -20,16 +20,19 @@ materialize: render
 .PHONY: materialize
 
 detect-change: materialize
-	@diff_output=$$(git diff -- './*.json'); \
-	if [ -n "$$diff_output" ]; then \
-		echo "Please review the diffs below:\n\n"; \
-		echo "$$diff_output"; \
-		echo "\n\n===================================================="; \
-		echo "\n\nOnce you reviewed the changes and consider them meaningful, update them by running "make -C config/ materialize" and commit your changes."; \
-		echo "\n\n===================================================="; \
+	@if [ -n "$$(git status --short)" ]; then \
+		echo "The following files are out of date after running 'make -C config/ materialize':"; \
+		echo; \
+		git status --short; \
+		echo; \
+		git diff; \
+		echo; \
+		echo "===================================================="; \
+		echo "Run 'make -C config/ materialize' and commit the changes."; \
+		echo "===================================================="; \
 		exit 1; \
 	else \
-		echo "No changes detected in the configuration files."; \
+		echo "No changes detected. Config and helm fixtures are up to date."; \
 	fi
 .PHONY: detect-change
 
