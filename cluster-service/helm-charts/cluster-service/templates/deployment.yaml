@@ -241,7 +241,7 @@ spec:
             scheme: HTTP
           initialDelaySeconds: 15
           periodSeconds: 10
-          timeoutSeconds: 5
+          timeoutSeconds: 10
         readinessProbe:
           httpGet:
             path: /healthcheck
@@ -252,6 +252,7 @@ spec:
               value: Probe
           initialDelaySeconds: 20
           periodSeconds: 10
+          timeoutSeconds: 10
         resources:
           requests:
             memory: '{{ .Values.memoryRequest }}'
