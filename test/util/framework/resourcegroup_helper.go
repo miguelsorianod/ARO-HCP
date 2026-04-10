@@ -18,12 +18,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/onsi/ginkgo/v2"
 
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
@@ -147,6 +150,15 @@ func DeleteResourceGroup(
 
 	poller, err := resourceGroupsClient.BeginDelete(ctx, resourceGroupName, opts)
 	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusConflict {
+			resp, getErr := resourceGroupsClient.Get(ctx, resourceGroupName, nil)
+			if getErr == nil && resp.Properties != nil && resp.Properties.ProvisioningState != nil && *resp.Properties.ProvisioningState == "Deleting" {
+				ginkgo.GinkgoLogr.Info("resource group already deleting, waiting for completion",
+					"resourceGroup", resourceGroupName)
+				return waitForResourceGroupDeletion(ctx, resourceGroupsClient, resourceGroupName)
+			}
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed to delete resource group, caused by: %w, error: %w", context.Cause(ctx), err)
 		}
@@ -171,6 +183,35 @@ func DeleteResourceGroup(
 	}
 
 	return nil
+}
+
+// waitForResourceGroupDeletion polls GET on the resource group until it returns 404 (deleted).
+func waitForResourceGroupDeletion(
+	ctx context.Context,
+	resourceGroupsClient *armresources.ResourceGroupsClient,
+	resourceGroupName string,
+) error {
+	for {
+		_, err := resourceGroupsClient.Get(ctx, resourceGroupName, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				ginkgo.GinkgoLogr.Info("resource group deletion completed",
+					"resourceGroup", resourceGroupName)
+				return nil
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("timed out waiting for already deleting resourcegroup=%q to be deleted, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), err)
+			}
+			return fmt.Errorf("failed polling for deletion of resourcegroup=%q: %w", resourceGroupName, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for already deleting resourcegroup=%q, caused by: %w, error: %w", resourceGroupName, context.Cause(ctx), ctx.Err())
+		case <-time.After(StandardPollInterval):
+		}
+	}
 }
 
 // detach any NSGs from subnets to avoid blocking deletion of the RG

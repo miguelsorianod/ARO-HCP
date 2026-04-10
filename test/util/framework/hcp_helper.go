@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/onsi/ginkgo/v2"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
@@ -195,6 +197,15 @@ func DeleteHCPCluster(
 
 	poller, err := hcpClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nil)
 	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusConflict {
+			resp, getErr := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+			if getErr == nil && resp.Properties != nil && resp.Properties.ProvisioningState != nil && *resp.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateDeleting {
+				ginkgo.GinkgoLogr.Info("cluster already deleting, waiting for completion",
+					"cluster", hcpClusterName, "resourceGroup", resourceGroupName)
+				return waitForHCPClusterDeletion(ctx, hcpClient, resourceGroupName, hcpClusterName)
+			}
+		}
 		return err
 	}
 
@@ -216,6 +227,36 @@ func DeleteHCPCluster(
 	}
 
 	return nil
+}
+
+// waitForHCPClusterDeletion polls GET on the cluster until it returns 404 (deleted).
+func waitForHCPClusterDeletion(
+	ctx context.Context,
+	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	resourceGroupName string,
+	hcpClusterName string,
+) error {
+	for {
+		_, err := hcpClient.Get(ctx, resourceGroupName, hcpClusterName, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				ginkgo.GinkgoLogr.Info("cluster deletion completed",
+					"cluster", hcpClusterName, "resourceGroup", resourceGroupName)
+				return nil
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("timed out waiting for already-deleting hcpCluster=%q in resourcegroup=%q to be deleted, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return fmt.Errorf("failed polling for deletion of hcpCluster=%q in resourcegroup=%q: %w", hcpClusterName, resourceGroupName, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for already-deleting hcpCluster=%q in resourcegroup=%q, caused by: %w, error: %w", hcpClusterName, resourceGroupName, context.Cause(ctx), ctx.Err())
+		case <-time.After(StandardPollInterval):
+		}
+	}
 }
 
 // UpdateHCPCluster sends a PATCH (BeginUpdate) request for an HCP cluster and waits for completion
@@ -386,6 +427,15 @@ func DeleteNodePool(
 
 	poller, err := nodePoolsClient.BeginDelete(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
 	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusConflict {
+			resp, getErr := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+			if getErr == nil && resp.Properties != nil && resp.Properties.ProvisioningState != nil && *resp.Properties.ProvisioningState == hcpsdk20240610preview.ProvisioningStateDeleting {
+				ginkgo.GinkgoLogr.Info("nodepool already deleting, waiting for completion",
+					"nodePool", nodePoolName, "cluster", hcpClusterName, "resourceGroup", resourceGroupName)
+				return waitForNodePoolDeletion(ctx, nodePoolsClient, resourceGroupName, hcpClusterName, nodePoolName)
+			}
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("failed starting nodepool deletion %q for cluster %q in resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
 		}
@@ -410,6 +460,37 @@ func DeleteNodePool(
 	}
 
 	return nil
+}
+
+// waitForNodePoolDeletion polls GET on the nodepool until it returns 404 (deleted).
+func waitForNodePoolDeletion(
+	ctx context.Context,
+	nodePoolsClient *hcpsdk20240610preview.NodePoolsClient,
+	resourceGroupName string,
+	hcpClusterName string,
+	nodePoolName string,
+) error {
+	for {
+		_, err := nodePoolsClient.Get(ctx, resourceGroupName, hcpClusterName, nodePoolName, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+				ginkgo.GinkgoLogr.Info("nodepool deletion completed",
+					"nodePool", nodePoolName, "cluster", hcpClusterName, "resourceGroup", resourceGroupName)
+				return nil
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return fmt.Errorf("timed out waiting for already-deleting nodepool=%q in cluster=%q resourcegroup=%q to be deleted, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), err)
+			}
+			return fmt.Errorf("failed polling for deletion of nodepool=%q in cluster=%q resourcegroup=%q: %w", nodePoolName, hcpClusterName, resourceGroupName, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for already-deleting nodepool=%q in cluster=%q resourcegroup=%q, caused by: %w, error: %w", nodePoolName, hcpClusterName, resourceGroupName, context.Cause(ctx), ctx.Err())
+		case <-time.After(StandardPollInterval):
+		}
+	}
 }
 
 // GetNodePool fetches a nodepool resource
