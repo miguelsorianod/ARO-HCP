@@ -568,7 +568,7 @@ mgmt:
       zones: ""
     userAgentPool:
       maxCount: 6
-      minCount: 2
+      minCount: 1
       name: userswft
       osDiskSizeGB: 100
       poolCount: 3

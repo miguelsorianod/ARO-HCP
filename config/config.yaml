@@ -551,7 +551,7 @@ defaults:
         name: 'userswft'
         vmSize: 'Standard_E32ds_v6'
         osDiskSizeGB: 512
-        minCount: 2
+        minCount: 1
         poolCount: 3
         zones: ""
         zoneRedundantMode: "Auto"

@@ -339,7 +339,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-02-previ
       'daemonset-eviction-for-occupied-nodes': true
       'scan-interval': '10s'
       'scale-down-delay-after-add': '30m'
-      'scale-down-delay-after-delete': '1m'
+      'scale-down-delay-after-delete': '60s'
       'scale-down-delay-after-failure': '3m'
       'scale-down-unneeded-time': '30m'
       'scale-down-unready-time': '20m'
