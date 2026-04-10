@@ -190,6 +190,9 @@ clustersService:
       candidate:
         maxVersion: ""
         minVersion: 4.19.7
+      fast:
+        maxVersion: ""
+        minVersion: 4.19.0
       nightly:
         maxVersion: ""
         minVersion: 4.19.0-0.nightly-20200101
