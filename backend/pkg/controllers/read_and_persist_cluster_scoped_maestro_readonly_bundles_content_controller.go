@@ -123,14 +123,15 @@ func (c *readAndPersistClusterScopedMaestroReadonlyBundlesContentSyncer) SyncOnc
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster Provision Shard from Cluster Service: %w", err))
 	}
-	maestroClient, err := c.createMaestroClientFromProvisionShard(ctx, clusterProvisionShard)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
-	}
+
 	// We create a new context with a cancel function so we can cancel the Maestro client when the sync is done.
 	// This is important to avoid leaking resources when the sync is done.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	maestroClient, err := c.createMaestroClientFromProvisionShard(ctx, clusterProvisionShard)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create Maestro client: %w", err))
+	}
 
 	var syncErrors []error
 	for _, maestroBundleReference := range existingServiceProviderCluster.Status.MaestroReadonlyBundles {
