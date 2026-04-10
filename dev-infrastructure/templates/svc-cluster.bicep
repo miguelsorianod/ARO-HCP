@@ -200,6 +200,9 @@ param csPostgresServerVersion string
 @description('The size of the Postgres server for CS')
 param csPostgresServerStorageSizeGB int
 
+@description('Enable enhanced metrics for the CS PostgreSQL server')
+param csPostgresEnhancedMetricsEnabled bool
+
 @description('If true, make the CS Postgres instance private')
 param clusterServicePostgresPrivate bool = true
 
@@ -236,6 +239,9 @@ param maestroPostgresDatabaseName string
 
 @description('The name of Maestro Server MQTT client')
 param maestroServerMqttClientName string
+
+@description('Enable enhanced metrics for the Maestro PostgreSQL server')
+param maestroPostgresEnhancedMetricsEnabled bool
 
 @description('The name of the maestro managed identity')
 param maestroMIName string
@@ -805,6 +811,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
     postgresAdministrationManagedIdentityId: globalMSIId
+    postgresEnhancedMetricsEnabled: maestroPostgresEnhancedMetricsEnabled
     maestroServerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
       managedIdentities.outputs.managedIdentities,
       maestroMIName
@@ -829,6 +836,7 @@ module cs '../modules/cluster-service.bicep' = {
     postgresServerMinTLSVersion: csPostgresServerMinTLSVersion
     postgresServerVersion: csPostgresServerVersion
     postgresServerStorageSizeGB: csPostgresServerStorageSizeGB
+    postgresEnhancedMetricsEnabled: csPostgresEnhancedMetricsEnabled
     csDatabaseName: csPostgresDatabaseName
     privateEndpointSubnetId: nodeSubnetCreation.outputs.subnetId
     privateEndpointVnetId: vnetCreation.outputs.vnetId

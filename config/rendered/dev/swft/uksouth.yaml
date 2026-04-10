@@ -205,6 +205,7 @@ clustersService:
       pvcCapacity: 512Mi
     databaseName: clusters-service
     deploy: false
+    enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-swft-dbcs-lnstest
@@ -505,6 +506,7 @@ maestro:
       pvcCapacity: 512Mi
     databaseName: maestro
     deploy: false
+    enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-swft-dbmaestro-lnstest

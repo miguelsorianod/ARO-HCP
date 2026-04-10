@@ -75,12 +75,41 @@ param postgresBackupRetentionDays int
 @description('Enable geo-redundant backups for the PostgreSQL server.')
 param postgresGeoRedundantBackup bool
 
+@description('Enable enhanced metrics for the PostgreSQL server.')
+param postgresEnhancedMetricsEnabled bool
+
 @description('The regional resource group')
 param regionalResourceGroup string
 
 //
 //   P O S T G R E S
 //
+
+var baseDBConfigurations = [
+  {
+    source: 'log_min_duration_statement'
+    value: '3000'
+  }
+  {
+    source: 'log_statement'
+    value: 'all'
+  }
+]
+
+var dbEnhancedMetricsConfiguration = [
+  {
+    // Related to Postgres Enhanced Metrics.
+    // https://learn.microsoft.com/en-us/azure/postgresql/monitor/concepts-monitoring#enhanced-metrics
+    // Required to be able to have additional postgres metrics available.
+    source: 'metrics.collector_database_activity'
+    value: 'on'
+  }
+]
+
+var dbConfigurations = concat(
+  baseDBConfigurations,
+  postgresEnhancedMetricsEnabled ? dbEnhancedMetricsConfiguration : []
+)
 
 import * as res from '../resource.bicep'
 
@@ -101,16 +130,7 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
       }
     ]
     version: postgresServerVersion
-    configurations: [
-      {
-        source: 'log_min_duration_statement'
-        value: '3000'
-      }
-      {
-        source: 'log_statement'
-        value: 'all'
-      }
-    ]
+    configurations: dbConfigurations
     databases: [
       {
         name: maestroDatabaseName

@@ -77,11 +77,42 @@ param postgresBackupRetentionDays int
 @description('Enable geo-redundant backups for the PostgreSQL server.')
 param postgresGeoRedundantBackup bool
 
+@description('Enable enhanced metrics for the PostgreSQL server.')
+param postgresEnhancedMetricsEnabled bool
+
 //
 //   P O S T G R E S
 //
 
 import * as res from 'resource.bicep'
+
+// Base log_* settings taken from the CS RDS instance (legacy parameter group).
+// https://gitlab.cee.redhat.com/service/app-interface/-/blob/fc95453b1e0eaf162089525f5b94b6dc1e6a091f/resources/terraform/resources/ocm/clusters-service-production-rds-parameter-group-pg12.yml
+var baseDBConfigurations = [
+  {
+    source: 'log_min_duration_statement'
+    value: '3000'
+  }
+  {
+    source: 'log_statement'
+    value: 'all'
+  }
+]
+
+var dbEnhancedMetricsConfiguration = [
+  {
+    // Related to Postgres Enhanced Metrics.
+    // https://learn.microsoft.com/en-us/azure/postgresql/monitor/concepts-monitoring#enhanced-metrics
+    // Required to be able to have additional postgres metrics available.
+    source: 'metrics.collector_database_activity'
+    value: 'on'
+  }
+]
+
+var dbConfigurations = concat(
+  baseDBConfigurations,
+  postgresEnhancedMetricsEnabled ? dbEnhancedMetricsConfiguration : []
+)
 
 module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
   name: 'cs-postgres-deployment'
@@ -98,18 +129,7 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
     ]
     version: postgresServerVersion
     minTLSVersion: postgresServerMinTLSVersion
-    configurations: [
-      // some configs taked over from the CS RDS instance
-      // https://gitlab.cee.redhat.com/service/app-interface/-/blob/fc95453b1e0eaf162089525f5b94b6dc1e6a091f/resources/terraform/resources/ocm/clusters-service-production-rds-parameter-group-pg12.yml
-      {
-        source: 'log_min_duration_statement'
-        value: '3000'
-      }
-      {
-        source: 'log_statement'
-        value: 'all'
-      }
-    ]
+    configurations: dbConfigurations
     databases: [
       {
         name: csDatabaseName
