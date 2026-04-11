@@ -101,7 +101,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:5d1fc3770795996bc22512c28adf4623ecb8a69eec3018a88e34a87bcba3366a # master.260205.3 (2026-02-05 00:00)
+      digest: sha256:a249d179ee44de7951020ebf0f141e689dadd7207c228b355734b35b772c3333 # master.260408.1 (2026-04-08 00:00)
   # Arobit
   arobit:
     forwarder:
@@ -156,7 +156,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:63698a49f7577218b2950b6409f4425b8db8dc0e45fed8ef034248a8b472ab5b # a541f06 (2026-04-09 20:41)
+      digest: sha256:84bc2876df0dff1ee8089a585c71ddabb399ca44ba4bf5177759f9c8b36e9ebf # 6324ed1 (2026-04-10 21:18)
   # Secret Sync Controller
   secretSyncController:
     image:
@@ -166,7 +166,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:490c3b795cb12bd9e5a3680bb7dabd7ea02799c30b14ed960611517c5d808e6b # v1.7.2 (2026-02-24 20:49)
+      digest: sha256:a26eb83e0d111ea436b381a8fc654633cb1e04cf32b6f6cbaffc27014544f235 # v1.7.2 (2026-04-10 21:52)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -278,7 +278,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:f147768e5f0091dd8ce873de6453aeb7d00a4de0a1b54be615e6725ce6d16526 # 6a333169a21858dd7eb14509b01ab34f7f24e99e (2026-04-09 17:31)
+      digest: sha256:24a8d72d63ea4c4e8ab85f8a4a45c3182f5860b85d270811c19581da4f3d5f25 # 783f7956d4f963f7dc716ea6622706034593e1e0 (2026-04-10 20:46)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -471,7 +471,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: b7bd3a6bf3160b82af89c345c58b1fd3a936801c8c65fef7ed2111dc71c766a3 # v0.90.0 (2026-03-20 16:32)
+          sha: 2b1e5d9edbc42465f89655238d603272c586f651065f06ae8ae297b47720f948 # v0.90.0 (2026-04-10 22:04)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -595,7 +595,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: b7bd3a6bf3160b82af89c345c58b1fd3a936801c8c65fef7ed2111dc71c766a3 # v0.90.0 (2026-03-20 16:32)
+          sha: 2b1e5d9edbc42465f89655238d603272c586f651065f06ae8ae297b47720f948 # v0.90.0 (2026-04-10 22:04)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -618,7 +618,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpbackend
-      digest: sha256:f059abfb7f1b7f64e384eb2745dfc5989661c50aadb18c99bf9d2b7c0246abcf # a541f06 (2026-04-09 20:43)
+      digest: sha256:1ea55edf35052e5cf1cd84aa6e877ecee49324b7b2c7ee2fa70827e79edce8f8 # 6324ed1 (2026-04-10 21:21)
     tracing:
       address: ""
       exporter: ""
@@ -647,7 +647,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpadminapi
-      digest: sha256:3c51851594e81c831dccab9735cee5b1f033765a28df3c7e30874cef67df4b3e # a541f06 (2026-04-09 20:43)
+      digest: sha256:2670a25858771691403ec47ff1af8504e517a52f95505dad9ed323d889361ded # 6324ed1 (2026-04-10 21:20)
     managedIdentityName: admin-api
     k8s:
       replicas: 2
@@ -666,7 +666,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpsessiongate
-      digest: sha256:84f5683368b820a08b2f010cb7ef42f1add30e6d80ea576d77c45e581ff27bc8 # a541f06 (2026-04-09 20:43)
+      digest: sha256:1a0e007fa4c774e176e1638257206126699b557b5530733c898bf2367384830c # 6324ed1 (2026-04-10 21:20)
     managedIdentityName: sessiongate
     k8s:
       replicas: 2
@@ -691,7 +691,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpfrontend
-      digest: sha256:e49ea1795a72e71ff79ef813c353636ddf7a863d6bf361aeb7826a16fae2b0b5 # a541f06 (2026-04-09 20:42)
+      digest: sha256:63d30656f797993d4f757aee9da4166986b17bcb7b5d983747b2596e8a775166 # 6324ed1 (2026-04-10 21:19)
     tracing:
       address: ""
       exporter: ""
@@ -876,12 +876,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-215
-        digest: sha256:21f7525f72a31f271e0140c0489e6b14cd3bf9eef95b8ab3844dbcc55f47fb3f # v2.15.2-463 (2026-04-09 17:25)
+        digest: sha256:e5f91b0804139d52fd52394c01888441c698595cbaf3097e0b4b73ed33d504c6 # v2.15.2-466 (2026-04-10 17:17)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-210
-        digest: sha256:6b80ae204f71a52269e361d7255b2021f4d1b9aa0e60e763a504e508c12c02a8 # v2.10.2-487 (2026-04-09 17:25)
+        digest: sha256:7c40432a415212274545c0ed2b2be1625013f441921626ff0711cac9c677bc13 # v2.10.2-488 (2026-04-10 17:17)
   # Cluster Service
   clustersService:
     image:
@@ -963,7 +963,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:f6a24c1a4db168cf2ed8594c8e4b5d8e37c92f0773c497191c1f2e9326640935 # a541f06 (2026-04-09 20:41)
+        digest: sha256:0d27ab0959fb13a5d1cffebbad5cf7d7aadbb347508f1bed972b1ca7543f5171 # 6324ed1 (2026-04-10 21:19)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21"
   # Automation Account
