@@ -15,6 +15,7 @@
 package ocm
 
 import (
+	"fmt"
 	"time"
 
 	"k8s.io/utils/ptr"
@@ -22,6 +23,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // clusterUpdateDispatchConfig is a dispatch-specific canonical model of the Cluster's
@@ -116,6 +118,7 @@ type clusterUpdateDispatchConfig struct {
 	Autoscaling                    clusterUpdateDispatchConfigAutoscaling                    `json:"autoscaling,omitempty"`
 	ExperimentalFeatures           clusterUpdateDispatchConfigExperimentalFeatures           `json:"experimentalFeatures,omitempty"`
 	ServiceProviderClusterDispatch clusterUpdateDispatchConfigServiceProviderClusterDispatch `json:"serviceProviderClusterDispatch,omitempty"`
+	Etcd                           clusterUpdateDispatchConfigEtcd                           `json:"etcd,omitempty"`
 }
 
 // clusterUpdateDispatchConfigImageDigestMirror is the curated image mirror subset used for
@@ -132,6 +135,26 @@ type clusterUpdateDispatchConfigAutoscaling struct {
 	MaxPodGracePeriodSeconds    int32 `json:"maxPodGracePeriodSeconds,omitempty"`
 	MaxNodeProvisionTimeSeconds int32 `json:"maxNodeProvisionTimeSeconds,omitempty"`
 	PodPriorityThreshold        int32 `json:"podPriorityThreshold,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcd struct {
+	DataEncryption clusterUpdateDispatchConfigEtcdDataEncryption `json:"dataEncryption,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryption struct {
+	CustomerManaged *clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged `json:"customerManaged,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged struct {
+	Kms *clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms `json:"kms,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms struct {
+	ActiveKey clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey `json:"activeKey,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey struct {
+	Version string `json:"version,omitempty"`
 }
 
 // clusterUpdateDispatchConfigExperimentalFeatures is the curated experimental subset used for
@@ -207,6 +230,7 @@ func clusterUpdateDispatchConfigFromRP(cluster *api.HCPOpenShiftCluster, service
 			ControlPlaneOperatorImage: cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage,
 		},
 		ServiceProviderClusterDispatch: clusterUpdateDispatchConfigServiceProviderClusterDispatch{},
+		Etcd:                           clusterUpdateDispatchConfigEtcdFromRP(cluster.CustomerProperties.Etcd),
 	}
 
 	if serviceProviderCluster != nil {
@@ -259,8 +283,77 @@ func clusterUpdateDispatchConfigFromCS(csCluster *arohcpv1alpha1.Cluster) (*clus
 		return nil, err
 	}
 	config.Autoscaling = autoscaling
+	config.Etcd = clusterUpdateDispatchConfigEtcdFromCS(csCluster)
 
 	return config, nil
+}
+
+// clusterUpdateDispatchConfigEtcdFromRP copies the dispatch-managed KMS active key version
+// from RP etcd configuration. Returns zero value when the cluster does not use customer-managed KMS.
+func clusterUpdateDispatchConfigEtcdFromRP(etcd api.EtcdProfile) clusterUpdateDispatchConfigEtcd {
+	if etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	res := clusterUpdateDispatchConfigEtcd{}
+	if etcd.DataEncryption.CustomerManaged.EncryptionType == api.CustomerManagedEncryptionTypeKMS {
+		res.DataEncryption.CustomerManaged.Kms = &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+			ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+				Version: etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version,
+			},
+		}
+	}
+
+	return res
+}
+
+// clusterUpdateDispatchConfigEtcdFromCS extracts the dispatch-managed KMS active key version
+// from a Cluster Service cluster. Returns zero value when the cluster does not use customer-managed KMS.
+func clusterUpdateDispatchConfigEtcdFromCS(csCluster *arohcpv1alpha1.Cluster) clusterUpdateDispatchConfigEtcd {
+	azure := csCluster.Azure()
+
+	etcdEncryption, ok := azure.GetEtcdEncryption()
+	if !ok || etcdEncryption == nil {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+	dataEncryption, ok := etcdEncryption.GetDataEncryption()
+	if !ok || dataEncryption == nil {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	keyManagementMode, ok := dataEncryption.GetKeyManagementMode()
+	if !ok || keyManagementMode == "" {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	customerManaged := dataEncryption.CustomerManaged()
+
+	encryptionType := customerManaged.EncryptionType()
+	if encryptionType == "" {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	kms := customerManaged.Kms()
+
+	activeKey := kms.ActiveKey()
+
+	activeKeyKeyVersion := activeKey.KeyVersion()
+
+	return clusterUpdateDispatchConfigEtcd{
+		DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+			CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+				Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+					ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+						Version: activeKeyKeyVersion,
+					},
+				},
+			},
+		},
+	}
 }
 
 // ClusterUpdateDispatchConfigNodeDrainTimeoutFromCS extracts the node drain timeout in
@@ -429,7 +522,11 @@ func (c *clusterUpdateDispatchConfig) canonicalJSON() ([]byte, error) {
 // baseProperties depending on how they evaluate. If they evaluate to enabled then the corresponding
 // key is set to the value of the Experimental feature. If they evaluate to disabled then the corresponding key
 // is deleted from the baseProperties map.
-func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clusterAPIBuilder *arohcpv1alpha1.ClusterAPIBuilder, baseProperties map[string]string) error {
+func (c *clusterUpdateDispatchConfig) applyToCSBuilders(
+	clusterBuilder *arohcpv1alpha1.ClusterBuilder, clusterAPIBuilder *arohcpv1alpha1.ClusterAPIBuilder,
+	etcdDataEncryptionCustomerManagedActiveKeyBuilder *arohcpv1alpha1.AzureKmsKeyBuilder,
+	baseProperties map[string]string,
+) error {
 	if baseProperties == nil {
 		baseProperties = map[string]string{}
 	}
@@ -472,6 +569,15 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 		delete(baseProperties, CSPropertyCPOImageOverride)
 	}
 	clusterBuilder.Properties(baseProperties)
+
+	// We support updating the Active KMS key for etcd data encryption in customer managed key encryption mode
+	// only when we are in that mode
+	if c.Etcd.DataEncryption.CustomerManaged != nil && c.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+		if etcdDataEncryptionCustomerManagedActiveKeyBuilder == nil {
+			return utils.TrackError(fmt.Errorf("unexpected: set etcd data encryption customer managed kms active key but no corresponding ocm builder set"))
+		}
+		etcdDataEncryptionCustomerManagedActiveKeyBuilder.KeyVersion(c.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+	}
 
 	return nil
 }

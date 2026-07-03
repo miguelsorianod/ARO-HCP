@@ -80,7 +80,45 @@ func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(clust
 	if matches, message := c.hypershiftHostedClusterImageContentSourcesSpecMatchesDesired(cluster.CustomerProperties.ImageDigestMirrors, hostedCluster.Spec.ImageContentSources); !matches {
 		return false, message
 	}
+
+	if matches, message := c.hypershiftHostedClusterEtcdDataEncryptionSpecMatchesDesired(cluster.CustomerProperties.Etcd.DataEncryption, hostedCluster.Spec.SecretEncryption); !matches {
+		return false, message
+	}
+
 	return true, ""
+}
+
+func (c *operationClusterUpdate) hypershiftHostedClusterEtcdDataEncryptionSpecMatchesDesired(desiredDataEncryption api.EtcdDataEncryptionProfile, observedSecretEncryptionSpec *v1beta1.SecretEncryptionSpec) (bool, string) {
+	if observedSecretEncryptionSpec == nil {
+		return false, "unexpected hypershift HostedCluster secret encryption is not set"
+	}
+
+	if desiredDataEncryption.KeyManagementMode == api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		if desiredDataEncryption.CustomerManaged.EncryptionType != api.CustomerManagedEncryptionTypeKMS {
+			return false, fmt.Sprintf("support for desired customer managed key encryption type %s for updates is not implemented", desiredDataEncryption.CustomerManaged.EncryptionType)
+		}
+
+		if observedSecretEncryptionSpec.Type != v1beta1.KMS {
+			return false, fmt.Sprintf("hypershift HostedCluster secret encryption is: %q, want :%q", observedSecretEncryptionSpec.Type, desiredDataEncryption.CustomerManaged.EncryptionType)
+		}
+
+		if observedSecretEncryptionSpec.KMS == nil {
+			return false, fmt.Sprintf("unexpected hypershift HostedCluster kms secret encryption configuration unset")
+		}
+
+		if observedSecretEncryptionSpec.KMS.Azure == nil {
+			return false, fmt.Sprintf("unexpected hypershift HostedCluster kms secret encryption azure configuration unset")
+		}
+
+		if observedSecretEncryptionSpec.KMS.Azure.ActiveKey.KeyVersion != desiredDataEncryption.CustomerManaged.Kms.ActiveKey.Version {
+			return false, fmt.Sprintf("hypershift HostedCluster kms secret encryption active key version is: %q, want: %q", observedSecretEncryptionSpec.KMS.Azure.ActiveKey.KeyVersion, desiredDataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+		}
+
+		return true, ""
+
+	}
+
+	return false, fmt.Sprintf("support for desired key management mode %q for updates is not implemented", desiredDataEncryption.KeyManagementMode)
 }
 
 // hypershiftHostedClusterAllowedCIDRBlocksSpecMatchesDesired reports whether HostedCluster's apiserver allowedCIDRBlocks spec
